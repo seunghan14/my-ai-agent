@@ -1,177 +1,186 @@
-# 🚀 나만의 AI 에이전트 - 설치 가이드
+"""
+텔레그램 봇 - 빠른 메모, 조회, 알림
+별도 서버에서 실행해야 합니다 (예: Railway, Render 무료 티어)
 
-## 전체 순서 (약 20-30분)
+사용법:
+1. @BotFather에서 봇 생성 → 토큰 받기
+2. 아래 설정 입력
+3. python telegram_bot.py 실행
+"""
+import os
+import json
+import requests
+from datetime import datetime, date
 
-1. ✅ Supabase 설정 (5분)
-2. ✅ GitHub에 코드 업로드 (5분)  
-3. ✅ Streamlit Cloud 배포 (5분)
-4. ✅ API 키 설정 (3분)
-5. ⭐ (선택) 텔레그램 봇 연결 (10분)
+# ===== 설정 =====
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "여기에-텔레그램-봇-토큰")
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "여기에-supabase-url")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "여기에-supabase-key")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "여기에-gemini-key")
 
----
+# Supabase 헬퍼
+def sb_request(method, table, data=None, params=None):
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+    }
+    if method == "GET":
+        return requests.get(url, headers=headers, params=params).json()
+    elif method == "POST":
+        return requests.post(url, headers=headers, json=data).json()
 
-## 1단계: Supabase 설정
+# 텔레그램 헬퍼
+def send_message(chat_id, text, parse_mode="Markdown"):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": parse_mode})
 
-### 1-1. 가입
-1. https://supabase.com 접속
-2. "Start your project" 클릭
-3. GitHub 계정으로 로그인 (없으면 만들기)
+def get_updates(offset=None):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates"
+    params = {"timeout": 30}
+    if offset:
+        params["offset"] = offset
+    try:
+        return requests.get(url, params=params, timeout=35).json().get("result", [])
+    except:
+        return []
 
-### 1-2. 프로젝트 생성
-1. "New Project" 클릭
-2. 프로젝트 이름: `my-ai-agent`
-3. Database Password: 강력한 비밀번호 입력 (메모해두세요!)
-4. Region: `Northeast Asia (Tokyo)` 선택 (한국에서 가장 빠름)
-5. "Create new project" 클릭
-6. 2-3분 기다리기
+# 명령어 처리
+def handle_message(message):
+    chat_id = message["chat"]["id"]
+    text = message.get("text", "")
+    
+    if not text:
+        return
+    
+    # /시작 - 안내
+    if text == "/start" or text == "/help":
+        help_text = """🚀 *나만의 AI 에이전트 봇*
 
-### 1-3. 테이블 생성
-1. 왼쪽 메뉴에서 "SQL Editor" 클릭
-2. "New query" 클릭
-3. `setup.sql` 파일의 내용을 **전체 복사**해서 붙여넣기
-4. "Run" 버튼 클릭
-5. "Success" 메시지 확인
+📝 *메모*: 아무 텍스트 → 노트 자동 저장
+✅ */할일 내용* → 태스크 추가
+💰 */지출 카테고리 금액* → 지출 기록
+🔍 */검색 키워드* → 노트 검색
+📋 */오늘* → 오늘 할일 + 일정
+📊 */리뷰* → 주간 리뷰
+☀️ */브리핑* → 오늘의 브리핑
 
-### 1-4. API 키 확인
-1. 왼쪽 메뉴 "Settings" → "API" 클릭
-2. 다음 두 값을 메모:
-   - **Project URL**: `https://xxxx.supabase.co`
-   - **anon public key**: `eyJhbG...` (긴 문자열)
+아무 텍스트를 보내면 자동으로 노트에 저장됩니다!"""
+        send_message(chat_id, help_text)
+        return
+    
+    # /할일 - 태스크 추가
+    if text.startswith("/할일 ") or text.startswith("/todo "):
+        task_text = text.split(" ", 1)[1]
+        sb_request("POST", "tasks", {
+            "user_id": get_user_id(chat_id),
+            "title": task_text,
+            "status": "todo",
+            "priority": "medium"
+        })
+        send_message(chat_id, f"✅ 태스크 추가됨: *{task_text}*")
+        return
+    
+    # /지출 - 지출 기록
+    if text.startswith("/지출 "):
+        parts = text.split(" ")
+        if len(parts) >= 3:
+            category = parts[1]
+            try:
+                amount = int(parts[2].replace(",", ""))
+                desc = " ".join(parts[3:]) if len(parts) > 3 else ""
+                sb_request("POST", "expenses", {
+                    "user_id": get_user_id(chat_id),
+                    "amount": amount,
+                    "category": category,
+                    "description": desc,
+                    "expense_date": str(date.today())
+                })
+                send_message(chat_id, f"💰 기록됨: {category} {amount:,}원")
+            except:
+                send_message(chat_id, "❌ 형식: /지출 카테고리 금액\n예: /지출 식비 12000")
+        return
+    
+    # /검색 - 노트 검색
+    if text.startswith("/검색 ") or text.startswith("/search "):
+        keyword = text.split(" ", 1)[1]
+        user_id = get_user_id(chat_id)
+        results = sb_request("GET", "notes", params={
+            "user_id": f"eq.{user_id}",
+            "is_deleted": "eq.false",
+            "or": f"(title.ilike.%{keyword}%,content.ilike.%{keyword}%)",
+            "order": "updated_at.desc",
+            "limit": "5"
+        })
+        if results:
+            msg = f"🔍 *'{keyword}' 검색 결과:*\n\n"
+            for r in results:
+                msg += f"📝 *{r['title']}*\n{(r.get('content','')[:80])}...\n\n"
+            send_message(chat_id, msg)
+        else:
+            send_message(chat_id, f"검색 결과가 없습니다: {keyword}")
+        return
+    
+    # /오늘 - 오늘 할일 + 일정
+    if text == "/오늘" or text == "/today":
+        user_id = get_user_id(chat_id)
+        tasks = sb_request("GET", "tasks", params={
+            "user_id": f"eq.{user_id}",
+            "status": "in.(todo,doing)",
+            "order": "priority.desc"
+        })
+        msg = f"📋 *오늘 현황 ({date.today()})*\n\n"
+        if tasks:
+            for t in tasks[:10]:
+                prio = {"high":"🔴","medium":"🟡","low":"🟢"}.get(t.get("priority",""), "⚪")
+                status = {"todo":"할일","doing":"진행중"}.get(t.get("status",""), "")
+                msg += f"{prio} [{status}] {t['title']}\n"
+        else:
+            msg += "할 일이 없어요! 🎉\n"
+        send_message(chat_id, msg)
+        return
+    
+    # URL 감지 - 웹 클리퍼
+    if text.startswith("http://") or text.startswith("https://"):
+        send_message(chat_id, f"🔗 링크 저장됨! AI 요약 기능은 추후 업데이트 예정")
+        sb_request("POST", "notes", {
+            "user_id": get_user_id(chat_id),
+            "title": f"🔗 웹 클립 {datetime.now().strftime('%m/%d %H:%M')}",
+            "content": f"URL: {text}",
+            "note_type": "note"
+        })
+        return
+    
+    # 기본 - 메모로 저장
+    sb_request("POST", "notes", {
+        "user_id": get_user_id(chat_id),
+        "title": f"📱 메모 {datetime.now().strftime('%m/%d %H:%M')}",
+        "content": text,
+        "note_type": "note"
+    })
+    send_message(chat_id, "📝 메모 저장됨!")
 
----
+def get_user_id(chat_id):
+    """텔레그램 chat_id로 user_id 조회 (간단 버전: 첫 번째 사용자)"""
+    # 실제로는 chat_id와 user_id 매핑 테이블이 필요합니다
+    users = sb_request("GET", "profiles", params={"limit": "1"})
+    return users[0]["id"] if users else None
 
-## 2단계: GitHub에 코드 업로드
+# 메인 루프
+def main():
+    print("🤖 텔레그램 봇 시작!")
+    offset = None
+    while True:
+        updates = get_updates(offset)
+        for update in updates:
+            offset = update["update_id"] + 1
+            if "message" in update:
+                try:
+                    handle_message(update["message"])
+                except Exception as e:
+                    print(f"Error: {e}")
 
-### 2-1. GitHub 저장소 생성
-1. https://github.com 접속 (계정 없으면 가입)
-2. 우측 상단 "+" → "New repository"
-3. Repository name: `my-ai-agent`
-4. **Public** 선택
-5. "Create repository" 클릭
-
-### 2-2. 파일 업로드
-1. 생성된 저장소 페이지에서 "uploading an existing file" 링크 클릭
-2. 다운로드받은 파일들을 드래그앤드롭:
-   - `app.py`
-   - `db_utils.py`
-   - `ai_engine.py`
-   - `requirements.txt`
-   - `.streamlit/config.toml` (폴더째로)
-3. "Commit changes" 클릭
-
-⚠️ 주의: `secrets_template.toml`과 `telegram_bot.py`는 **업로드하지 마세요!**
-
----
-
-## 3단계: Streamlit Cloud 배포
-
-### 3-1. 배포
-1. https://share.streamlit.io 접속 (이미 가입하셨죠!)
-2. "New app" 클릭
-3. Repository: `your-github-username/my-ai-agent` 선택
-4. Branch: `main`
-5. Main file path: `app.py`
-6. "Deploy!" 클릭
-
-### 3-2. Secrets 설정 (중요!)
-1. 배포된 앱 페이지에서 우측 하단 "Manage app" 클릭
-2. "Settings" → "Secrets" 탭
-3. 다음 내용 입력:
-
-```toml
-SUPABASE_URL = "https://여기에-1단계에서-메모한-URL.supabase.co"
-SUPABASE_KEY = "여기에-1단계에서-메모한-anon-key"
-```
-
-4. "Save" 클릭
-5. 앱이 자동으로 재시작됩니다
-
-### 3-3. 확인
-- 앱 URL (`https://내앱이름.streamlit.app`)로 접속
-- 회원가입 → 로그인 테스트
-- 노트 작성 테스트
-
----
-
-## 4단계: API 키 설정
-
-### Gemini API 키 (무료)
-1. https://aistudio.google.com/apikey 접속
-2. "API 키 만들기" 클릭
-3. 키 복사
-4. 앱의 ⚙️ 설정 → Gemini API 키에 붙여넣기
-
-### Claude API 키 (선택, 유료)
-1. https://console.anthropic.com 접속
-2. API Keys → Create Key
-3. 크레딧 충전 필요 (최소 $5부터)
-4. 앱의 ⚙️ 설정 → Claude API 키에 붙여넣기
-5. **없어도 Gemini만으로 모든 기능 사용 가능!**
-
----
-
-## 5단계: 텔레그램 봇 (선택)
-
-### 5-1. 봇 생성
-1. 텔레그램에서 @BotFather 검색
-2. `/newbot` 입력
-3. 봇 이름 입력 (예: "나의 AI 비서")
-4. 봇 username 입력 (예: `my_ai_agent_bot`)
-5. **봇 토큰** 메모 (예: `123456:ABC-DEF...`)
-
-### 5-2. 봇 배포 (무료 호스팅)
-텔레그램 봇은 별도 서버에서 24시간 실행해야 합니다.
-
-**방법 A: Render (추천, 무료)**
-1. https://render.com 가입
-2. "New" → "Web Service"
-3. GitHub 저장소 연결 (telegram_bot.py만 별도 저장소 필요)
-4. Environment Variables에 다음 추가:
-   - `TELEGRAM_TOKEN`: 봇 토큰
-   - `SUPABASE_URL`: Supabase URL
-   - `SUPABASE_KEY`: Supabase Key
-   - `GEMINI_API_KEY`: Gemini 키
-5. Deploy
-
-**방법 B: 로컬 실행 (테스트용)**
-```bash
-pip install requests
-python telegram_bot.py
-```
-(PC를 켜둬야 동작)
-
----
-
-## 🎉 완료!
-
-### 접속 방법
-- **회사 PC**: 브라우저 → `https://내앱.streamlit.app`
-- **아이폰**: 사파리 → 같은 주소 → 공유 → "홈 화면에 추가"
-- **갤럭시탭**: 크롬 → 같은 주소 → 메뉴 → "홈 화면에 추가"
-- **텔레그램**: 봇에게 메시지 보내기
-
-### 비용
-- Streamlit Cloud: **무료**
-- Supabase: **무료** (500MB)
-- Gemini API: **무료**
-- Claude API: 선택사항 (사용량 기반)
-- 텔레그램: **무료**
-- Render (봇 호스팅): **무료**
-
-### **총 월 비용: 0원** 🎉
-
----
-
-## 문제 해결
-
-### "DB 연결 실패"
-→ Streamlit Cloud의 Secrets에 SUPABASE_URL과 SUPABASE_KEY가 정확히 입력되었는지 확인
-
-### "API 키 오류"  
-→ 앱 내 ⚙️ 설정에서 Gemini API 키가 입력되었는지 확인
-
-### 회사에서 접속 안 됨
-→ `*.streamlit.app` 도메인이 차단된 경우, Render나 Railway로 대체 배포 가능
-
-### 텔레그램 봇 응답 없음
-→ 봇이 실행 중인지 확인. Render 대시보드에서 로그 확인
+if __name__ == "__main__":
+    main()

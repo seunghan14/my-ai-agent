@@ -1,136 +1,177 @@
--- ============================================
--- 나만의 AI 에이전트 - Supabase DB 설정
--- Supabase SQL Editor에 이 내용을 통째로 붙여넣기 하세요
--- ============================================
+# 🚀 나만의 AI 에이전트 - 설치 가이드
 
--- 1. 사용자 프로필
-CREATE TABLE IF NOT EXISTS profiles (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    display_name TEXT,
-    settings JSONB DEFAULT '{}',
-    custom_terms JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT now()
-);
+## 전체 순서 (약 20-30분)
 
--- 2. 노트
-CREATE TABLE IF NOT EXISTS notes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    title TEXT NOT NULL DEFAULT '제목 없음',
-    content TEXT DEFAULT '',
-    note_type TEXT DEFAULT 'note',
-    template TEXT,
-    is_daily BOOLEAN DEFAULT FALSE,
-    daily_date DATE,
-    is_favorite BOOLEAN DEFAULT FALSE,
-    is_deleted BOOLEAN DEFAULT FALSE,
-    parent_id UUID REFERENCES notes(id),
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
+1. ✅ Supabase 설정 (5분)
+2. ✅ GitHub에 코드 업로드 (5분)  
+3. ✅ Streamlit Cloud 배포 (5분)
+4. ✅ API 키 설정 (3분)
+5. ⭐ (선택) 텔레그램 봇 연결 (10분)
 
--- 3. 태그
-CREATE TABLE IF NOT EXISTS tags (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    color TEXT DEFAULT '#6366f1',
-    UNIQUE(user_id, name)
-);
+---
 
--- 4. 노트-태그 연결
-CREATE TABLE IF NOT EXISTS note_tags (
-    note_id UUID REFERENCES notes(id) ON DELETE CASCADE,
-    tag_id UUID REFERENCES tags(id) ON DELETE CASCADE,
-    PRIMARY KEY (note_id, tag_id)
-);
+## 1단계: Supabase 설정
 
--- 5. 노트 간 링크 (양방향)
-CREATE TABLE IF NOT EXISTS note_links (
-    source_id UUID REFERENCES notes(id) ON DELETE CASCADE,
-    target_id UUID REFERENCES notes(id) ON DELETE CASCADE,
-    PRIMARY KEY (source_id, target_id)
-);
+### 1-1. 가입
+1. https://supabase.com 접속
+2. "Start your project" 클릭
+3. GitHub 계정으로 로그인 (없으면 만들기)
 
--- 6. 태스크
-CREATE TABLE IF NOT EXISTS tasks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    description TEXT DEFAULT '',
-    status TEXT DEFAULT 'todo',
-    priority TEXT DEFAULT 'medium',
-    due_date DATE,
-    project TEXT,
-    note_id UUID REFERENCES notes(id),
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
+### 1-2. 프로젝트 생성
+1. "New Project" 클릭
+2. 프로젝트 이름: `my-ai-agent`
+3. Database Password: 강력한 비밀번호 입력 (메모해두세요!)
+4. Region: `Northeast Asia (Tokyo)` 선택 (한국에서 가장 빠름)
+5. "Create new project" 클릭
+6. 2-3분 기다리기
 
--- 7. 캘린더 이벤트
-CREATE TABLE IF NOT EXISTS calendar_events (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    description TEXT DEFAULT '',
-    start_time TIMESTAMPTZ NOT NULL,
-    end_time TIMESTAMPTZ,
-    google_event_id TEXT,
-    color TEXT DEFAULT '#3b82f6',
-    created_at TIMESTAMPTZ DEFAULT now()
-);
+### 1-3. 테이블 생성
+1. 왼쪽 메뉴에서 "SQL Editor" 클릭
+2. "New query" 클릭
+3. `setup.sql` 파일의 내용을 **전체 복사**해서 붙여넣기
+4. "Run" 버튼 클릭
+5. "Success" 메시지 확인
 
--- 8. 지출 내역
-CREATE TABLE IF NOT EXISTS expenses (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    amount INTEGER NOT NULL,
-    category TEXT NOT NULL,
-    description TEXT DEFAULT '',
-    expense_date DATE DEFAULT CURRENT_DATE,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
+### 1-4. API 키 확인
+1. 왼쪽 메뉴 "Settings" → "API" 클릭
+2. 다음 두 값을 메모:
+   - **Project URL**: `https://xxxx.supabase.co`
+   - **anon public key**: `eyJhbG...` (긴 문자열)
 
--- 9. 전사 용어 사전
-CREATE TABLE IF NOT EXISTS custom_terms (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    wrong_term TEXT NOT NULL,
-    correct_term TEXT NOT NULL,
-    UNIQUE(user_id, wrong_term)
-);
+---
 
--- 10. 웹 클리퍼 저장
-CREATE TABLE IF NOT EXISTS web_clips (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    url TEXT NOT NULL,
-    title TEXT,
-    summary TEXT,
-    note_id UUID REFERENCES notes(id),
-    created_at TIMESTAMPTZ DEFAULT now()
-);
+## 2단계: GitHub에 코드 업로드
 
--- 인덱스 생성
-CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id);
-CREATE INDEX IF NOT EXISTS idx_notes_daily ON notes(user_id, daily_date);
-CREATE INDEX IF NOT EXISTS idx_notes_type ON notes(user_id, note_type);
-CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(user_id, status);
-CREATE INDEX IF NOT EXISTS idx_expenses_user ON expenses(user_id);
-CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(user_id, expense_date);
-CREATE INDEX IF NOT EXISTS idx_calendar_user ON calendar_events(user_id);
+### 2-1. GitHub 저장소 생성
+1. https://github.com 접속 (계정 없으면 가입)
+2. 우측 상단 "+" → "New repository"
+3. Repository name: `my-ai-agent`
+4. **Public** 선택
+5. "Create repository" 클릭
 
--- RLS (Row Level Security) 활성화
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tags ENABLE ROW LEVEL SECURITY;
-ALTER TABLE note_tags ENABLE ROW LEVEL SECURITY;
-ALTER TABLE note_links ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
-ALTER TABLE custom_terms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE web_clips ENABLE ROW LEVEL SECURITY;
+### 2-2. 파일 업로드
+1. 생성된 저장소 페이지에서 "uploading an existing file" 링크 클릭
+2. 다운로드받은 파일들을 드래그앤드롭:
+   - `app.py`
+   - `db_utils.py`
+   - `ai_engine.py`
+   - `requirements.txt`
+   - `.streamlit/config.toml` (폴더째로)
+3. "Commit changes" 클릭
+
+⚠️ 주의: `secrets_template.toml`과 `telegram_bot.py`는 **업로드하지 마세요!**
+
+---
+
+## 3단계: Streamlit Cloud 배포
+
+### 3-1. 배포
+1. https://share.streamlit.io 접속 (이미 가입하셨죠!)
+2. "New app" 클릭
+3. Repository: `your-github-username/my-ai-agent` 선택
+4. Branch: `main`
+5. Main file path: `app.py`
+6. "Deploy!" 클릭
+
+### 3-2. Secrets 설정 (중요!)
+1. 배포된 앱 페이지에서 우측 하단 "Manage app" 클릭
+2. "Settings" → "Secrets" 탭
+3. 다음 내용 입력:
+
+```toml
+SUPABASE_URL = "https://여기에-1단계에서-메모한-URL.supabase.co"
+SUPABASE_KEY = "여기에-1단계에서-메모한-anon-key"
+```
+
+4. "Save" 클릭
+5. 앱이 자동으로 재시작됩니다
+
+### 3-3. 확인
+- 앱 URL (`https://내앱이름.streamlit.app`)로 접속
+- 회원가입 → 로그인 테스트
+- 노트 작성 테스트
+
+---
+
+## 4단계: API 키 설정
+
+### Gemini API 키 (무료)
+1. https://aistudio.google.com/apikey 접속
+2. "API 키 만들기" 클릭
+3. 키 복사
+4. 앱의 ⚙️ 설정 → Gemini API 키에 붙여넣기
+
+### Claude API 키 (선택, 유료)
+1. https://console.anthropic.com 접속
+2. API Keys → Create Key
+3. 크레딧 충전 필요 (최소 $5부터)
+4. 앱의 ⚙️ 설정 → Claude API 키에 붙여넣기
+5. **없어도 Gemini만으로 모든 기능 사용 가능!**
+
+---
+
+## 5단계: 텔레그램 봇 (선택)
+
+### 5-1. 봇 생성
+1. 텔레그램에서 @BotFather 검색
+2. `/newbot` 입력
+3. 봇 이름 입력 (예: "나의 AI 비서")
+4. 봇 username 입력 (예: `my_ai_agent_bot`)
+5. **봇 토큰** 메모 (예: `123456:ABC-DEF...`)
+
+### 5-2. 봇 배포 (무료 호스팅)
+텔레그램 봇은 별도 서버에서 24시간 실행해야 합니다.
+
+**방법 A: Render (추천, 무료)**
+1. https://render.com 가입
+2. "New" → "Web Service"
+3. GitHub 저장소 연결 (telegram_bot.py만 별도 저장소 필요)
+4. Environment Variables에 다음 추가:
+   - `TELEGRAM_TOKEN`: 봇 토큰
+   - `SUPABASE_URL`: Supabase URL
+   - `SUPABASE_KEY`: Supabase Key
+   - `GEMINI_API_KEY`: Gemini 키
+5. Deploy
+
+**방법 B: 로컬 실행 (테스트용)**
+```bash
+pip install requests
+python telegram_bot.py
+```
+(PC를 켜둬야 동작)
+
+---
+
+## 🎉 완료!
+
+### 접속 방법
+- **회사 PC**: 브라우저 → `https://내앱.streamlit.app`
+- **아이폰**: 사파리 → 같은 주소 → 공유 → "홈 화면에 추가"
+- **갤럭시탭**: 크롬 → 같은 주소 → 메뉴 → "홈 화면에 추가"
+- **텔레그램**: 봇에게 메시지 보내기
+
+### 비용
+- Streamlit Cloud: **무료**
+- Supabase: **무료** (500MB)
+- Gemini API: **무료**
+- Claude API: 선택사항 (사용량 기반)
+- 텔레그램: **무료**
+- Render (봇 호스팅): **무료**
+
+### **총 월 비용: 0원** 🎉
+
+---
+
+## 문제 해결
+
+### "DB 연결 실패"
+→ Streamlit Cloud의 Secrets에 SUPABASE_URL과 SUPABASE_KEY가 정확히 입력되었는지 확인
+
+### "API 키 오류"  
+→ 앱 내 ⚙️ 설정에서 Gemini API 키가 입력되었는지 확인
+
+### 회사에서 접속 안 됨
+→ `*.streamlit.app` 도메인이 차단된 경우, Render나 Railway로 대체 배포 가능
+
+### 텔레그램 봇 응답 없음
+→ 봇이 실행 중인지 확인. Render 대시보드에서 로그 확인
