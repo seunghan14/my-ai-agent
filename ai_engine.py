@@ -1,16 +1,17 @@
-"""AI Engine V3.1 - Gemini model selection + Claude"""
+"""AI Engine V3.2 - Gemini model selection + auto fallback + Claude"""
 import streamlit as st
 import google.generativeai as genai
 import requests, json
 
 GEMINI_MODELS = {
-    "gemini-2.5-flash": "⚡ Gemini 2.5 Flash (Fast, Free)",
-    "gemini-2.5-pro": "🧠 Gemini 2.5 Pro (Smart)",
-    "gemini-3-flash-preview": "⚡ Gemini 3 Flash (Latest Fast)",
-    "gemini-3.1-pro-preview": "🧠 Gemini 3.1 Pro (Best, Latest)",
+    "gemini-2.5-flash": "⚡ Gemini 2.5 Flash (Fast, Free, Recommended)",
+    "gemini-2.5-pro": "🧠 Gemini 2.5 Pro (Smart, ~50/day free)",
+    "gemini-3-flash-preview": "⚡ Gemini 3 Flash Preview (Latest Fast)",
+    "gemini-3.1-pro-preview": "🧠 Gemini 3.1 Pro Preview (Best, limited free)",
 }
 
 DEFAULT_MODEL = "gemini-2.5-flash"
+FALLBACK_MODEL = "gemini-2.5-flash"
 
 def _get_key(name):
     return st.session_state.get(name, "") or st.secrets.get(name.upper(), "")
@@ -18,30 +19,26 @@ def _get_key(name):
 def _get_model():
     return st.session_state.get("gemini_model", DEFAULT_MODEL)
 
-def _get_smart_model():
-    """복잡한 작업용 - Pro 모델 우선"""
-    m = _get_model()
-    if "pro" in m: return m
-    if _get_key("gemini_api_key"): return "gemini-2.5-pro"
-    return m
-
 def get_ai(prompt, engine="auto", task="general"):
     if engine == "auto":
         engine = "claude" if (_get_key("claude_api_key") and task in ["content","summary","creative"]) else "gemini"
-    return _claude(prompt) if engine == "claude" else _gemini(prompt, task)
+    return _claude(prompt) if engine == "claude" else _gemini(prompt)
 
-def _gemini(prompt, task="general"):
+def _gemini(prompt):
     key = _get_key("gemini_api_key")
     if not key: return "⚠️ Gemini API key required. Go to Settings."
+    model_name = _get_model()
     try:
         genai.configure(api_key=key)
-        # 복잡한 작업은 Pro 모델, 간단한 작업은 Flash 모델
-        if task in ["analysis", "summary", "creative", "report"]:
-            model_name = _get_smart_model()
-        else:
-            model_name = _get_model()
         return genai.GenerativeModel(model_name).generate_content(prompt).text
-    except Exception as e: return f"❌ Gemini ({model_name}): {e}"
+    except Exception as e:
+        error_str = str(e)
+        if "429" in error_str and model_name != FALLBACK_MODEL:
+            try:
+                return genai.GenerativeModel(FALLBACK_MODEL).generate_content(prompt).text
+            except Exception as e2:
+                return f"❌ Gemini: {e2}"
+        return f"❌ Gemini ({model_name}): {e}"
 
 def _claude(prompt):
     key = _get_key("claude_api_key")
@@ -60,7 +57,12 @@ def transcribe(audio):
         genai.configure(api_key=key)
         return genai.GenerativeModel(_get_model()).generate_content(
             ["다음 음성을 한국어로 정확하게 전사해주세요. 화자 구분이 가능하면 구분해주세요.", {"mime_type": audio.type, "data": audio.read()}]).text
-    except Exception as e: return f"❌ {e}"
+    except Exception as e:
+        if "429" in str(e):
+            try: return genai.GenerativeModel(FALLBACK_MODEL).generate_content(
+                ["다음 음성을 한국어로 정확하게 전사해주세요. 화자 구분이 가능하면 구분해주세요.", {"mime_type": audio.type, "data": audio.read()}]).text
+            except: pass
+        return f"❌ {e}"
 
 def ocr_image(image_data, mime_type):
     key = _get_key("gemini_api_key")
@@ -69,17 +71,27 @@ def ocr_image(image_data, mime_type):
         genai.configure(api_key=key)
         return genai.GenerativeModel(_get_model()).generate_content(
             ["이 이미지의 모든 텍스트를 정확하게 읽어서 전사해주세요. 손글씨도 최대한 정확하게 읽어주세요. 마크다운 형식으로 정리해주세요.", {"mime_type": mime_type, "data": image_data}]).text
-    except Exception as e: return f"❌ {e}"
+    except Exception as e:
+        if "429" in str(e):
+            try: return genai.GenerativeModel(FALLBACK_MODEL).generate_content(
+                ["이 이미지의 모든 텍스트를 정확하게 읽어서 전사해주세요. 손글씨도 최대한 정확하게 읽어주세요. 마크다운 형식으로 정리해주세요.", {"mime_type": mime_type, "data": image_data}]).text
+            except: pass
+        return f"❌ {e}"
 
 def analyze_image_for_content(image_data, mime_type, content_type="instagram"):
     key = _get_key("gemini_api_key")
     if not key: return "⚠️ Gemini API key required."
+    prompt = f"이 이미지를 분석하고, {content_type}용 매력적인 캡션/글을 한국어로 작성해주세요. 해시태그도 포함해주세요."
     try:
         genai.configure(api_key=key)
-        prompt = f"이 이미지를 분석하고, {content_type}용 매력적인 캡션/글을 한국어로 작성해주세요. 해시태그도 포함해주세요."
-        return genai.GenerativeModel(_get_smart_model()).generate_content(
+        return genai.GenerativeModel(_get_model()).generate_content(
             [prompt, {"mime_type": mime_type, "data": image_data}]).text
-    except Exception as e: return f"❌ {e}"
+    except Exception as e:
+        if "429" in str(e):
+            try: return genai.GenerativeModel(FALLBACK_MODEL).generate_content(
+                [prompt, {"mime_type": mime_type, "data": image_data}]).text
+            except: pass
+        return f"❌ {e}"
 
 def smart_classify(text):
     r = get_ai(f'텍스트를 분류. JSON만 응답. type("task"/"note"/"expense"/"event"), title, content, amount(숫자/null), category(지출카테고리/null). 텍스트: "{text}"', task="analysis")
@@ -149,7 +161,7 @@ def weekly_report(notes, tasks, expenses):
 ### 3. 회의 요약
 ### 4. 이슈/리스크
 ### 5. 다음 주 계획
-### 6. 건의사항""", task="report")
+### 6. 건의사항""", task="summary")
 
 def folder_summary(notes, period_label):
     content = "\n".join([f"### {n['title']}\n{n.get('content','')[:300]}\n" for n in notes[:30]])
