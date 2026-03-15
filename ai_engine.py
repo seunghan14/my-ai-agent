@@ -1,4 +1,4 @@
-"""AI Engine V4.0 - Gemini + Claude + weekly_report custom format"""
+"""AI Engine V4.1"""
 import streamlit as st
 import google.generativeai as genai
 import requests, json
@@ -25,7 +25,7 @@ def get_ai(prompt, engine="auto", task="general"):
 
 def _gemini(prompt):
     key = _get_key("gemini_api_key")
-    if not key: return "⚠️ Gemini API key가 없습니다. Settings에서 입력하거나 Streamlit Secrets에 GEMINI_API_KEY를 추가하세요."
+    if not key: return "⚠️ Gemini API key가 없습니다. Settings > API Keys에서 입력하거나 Streamlit Secrets에 GEMINI_API_KEY를 추가하세요."
     model_name = _get_model()
     try:
         genai.configure(api_key=key)
@@ -45,7 +45,8 @@ def _claude(prompt):
     try:
         r = requests.post("https://api.anthropic.com/v1/messages",
             headers={"x-api-key": key, "content-type": "application/json", "anthropic-version": "2023-06-01"},
-            json={"model": "claude-sonnet-4-20250514", "max_tokens": 4096, "messages": [{"role":"user","content": prompt}]}, timeout=60)
+            json={"model": "claude-sonnet-4-20250514", "max_tokens": 4096,
+                  "messages": [{"role":"user","content": prompt}]}, timeout=60)
         return r.json()["content"][0]["text"] if r.status_code == 200 else _gemini(prompt)
     except: return _gemini(prompt)
 
@@ -55,7 +56,8 @@ def transcribe(audio):
     try:
         genai.configure(api_key=key)
         return genai.GenerativeModel(_get_model()).generate_content(
-            ["다음 음성을 한국어로 정확하게 전사해주세요. 화자 구분이 가능하면 구분해주세요.", {"mime_type": audio.type, "data": audio.read()}]).text
+            ["다음 음성을 한국어로 정확하게 전사해주세요. 화자 구분이 가능하면 구분해주세요.",
+             {"mime_type": audio.type, "data": audio.read()}]).text
     except Exception as e:
         if "429" in str(e):
             try: return genai.GenerativeModel(FALLBACK_MODEL).generate_content(
@@ -69,18 +71,19 @@ def ocr_image(image_data, mime_type):
     try:
         genai.configure(api_key=key)
         return genai.GenerativeModel(_get_model()).generate_content(
-            ["이 이미지의 모든 텍스트를 정확하게 읽어서 전사해주세요. 손글씨도 최대한 정확하게 읽어주세요. 마크다운 형식으로 정리해주세요.", {"mime_type": mime_type, "data": image_data}]).text
+            ["이 이미지의 모든 텍스트를 정확하게 읽어서 전사해주세요. 손글씨도 최대한 정확하게. 마크다운으로 정리.",
+             {"mime_type": mime_type, "data": image_data}]).text
     except Exception as e:
         if "429" in str(e):
             try: return genai.GenerativeModel(FALLBACK_MODEL).generate_content(
-                ["이 이미지의 모든 텍스트를 정확하게 읽어서 전사해주세요.", {"mime_type": mime_type, "data": image_data}]).text
+                ["이 이미지의 텍스트를 전사해주세요.", {"mime_type": mime_type, "data": image_data}]).text
             except: pass
         return f"❌ {e}"
 
 def analyze_image_for_content(image_data, mime_type, content_type="instagram"):
     key = _get_key("gemini_api_key")
     if not key: return "⚠️ Gemini API key required."
-    prompt = f"이 이미지를 분석하고, {content_type}용 매력적인 캡션/글을 한국어로 작성해주세요. 해시태그도 포함해주세요."
+    prompt = f"이 이미지를 분석하고, {content_type}용 매력적인 캡션/글을 한국어로 작성해주세요. 해시태그 포함."
     try:
         genai.configure(api_key=key)
         return genai.GenerativeModel(_get_model()).generate_content([prompt, {"mime_type": mime_type, "data": image_data}]).text
@@ -89,6 +92,31 @@ def analyze_image_for_content(image_data, mime_type, content_type="instagram"):
             try: return genai.GenerativeModel(FALLBACK_MODEL).generate_content([prompt, {"mime_type": mime_type, "data": image_data}]).text
             except: pass
         return f"❌ {e}"
+
+def summarize_note(content, custom_prompt=None):
+    base = custom_prompt or "아래 내용을 핵심 3~5줄로 요약해주세요."
+    prompt = f"""중요: 아래에 제공된 텍스트 내용만을 기반으로 작업하세요. 
+외부 정보, 인터넷 검색 결과, 학습 데이터의 다른 내용을 절대 추가하거나 혼합하지 마세요.
+오직 아래 텍스트만 분석하세요.
+
+{base}
+
+===분석할 텍스트===
+{content}
+=================="""
+    return get_ai(prompt, task="summary")
+
+def expand_note(content, custom_prompt=None):
+    base = custom_prompt or "아래 내용을 더 풍부하고 구체적으로 보완/확장해주세요."
+    prompt = f"""중요: 아래에 제공된 텍스트 내용을 기반으로만 작업하세요.
+외부 정보나 관련 없는 내용을 추가하지 마세요. 텍스트에 나온 개념과 아이디어만 발전시키세요.
+
+{base}
+
+===원본 텍스트===
+{content}
+================"""
+    return get_ai(prompt, task="content")
 
 def smart_classify(text):
     r = get_ai(f'텍스트를 분류. JSON만 응답. type("task"/"note"/"expense"/"event"), title, content, amount(숫자/null), category(지출카테고리/null). 텍스트: "{text}"', task="analysis")
@@ -120,7 +148,9 @@ def suggest_related(content, notes):
     except: return []
 
 def analyze_finances(exp, inc, loans):
-    te = sum(e.get("amount",0) for e in exp); ti = sum(i.get("amount",0) for i in inc); tl = sum(l.get("remaining_amount",0) for l in loans)
+    te = sum(e.get("amount",0) for e in exp)
+    ti = sum(i.get("amount",0) for i in inc)
+    tl = sum(l.get("remaining_amount",0) for l in loans)
     cats = {}
     for e in exp: cats[e.get("category","기타")] = cats.get(e.get("category","기타"),0)+e.get("amount",0)
     return get_ai(f"재정분석:\n수입:{ti:,}원\n지출:{te:,}원\n대출잔액:{tl:,}원\n카테고리:{json.dumps(cats,ensure_ascii=False)}\n\n1.재정건강도/100 2.지출최적화3가지 3.대출전략 4.저축/투자추천 5.3개월계획", task="analysis")
@@ -128,14 +158,62 @@ def analyze_finances(exp, inc, loans):
 def web_summary(url):
     return get_ai(f"URL 핵심 3-5줄 요약 + 키워드 3-5개:\n{url}", task="summary")
 
+def pomodoro_insight(logs, custom_prompt=None):
+    if not logs: return "기록된 세션이 없습니다."
+    from collections import defaultdict
+    daily = defaultdict(list)
+    task_map = defaultdict(list)
+    for l in logs:
+        d = l.get("completed_at","")[:10]
+        dur = l.get("duration_minutes", 25)
+        status = l.get("status","complete")
+        task = l.get("task_name","(미입력)")
+        daily[d].append({"dur": dur, "status": status, "task": task})
+        task_map[task].append(dur)
+    summary_lines = []
+    for d in sorted(daily.keys()):
+        sessions = daily[d]
+        total = sum(s["dur"] for s in sessions)
+        complete = len([s for s in sessions if s.get("status","complete")=="complete"])
+        summary_lines.append(f"{d}: {len(sessions)}세션, 완주{complete}개, 총{total}분")
+    task_lines = []
+    for task, durs in task_map.items():
+        task_lines.append(f"'{task}': {len(durs)}회, 총{sum(durs)}분")
+    base_prompt = custom_prompt or """뽀모도로 기록을 분석해서 다음을 알려주세요:
+1. 집중 패턴 (어떤 요일/시간대에 생산성이 높은지)
+2. 작업별 소요 시간 분석
+3. 완주율과 집중력 평가
+4. 개선 포인트 3가지
+5. 다음 주 집중력 향상을 위한 구체적 조언"""
+    prompt = f"""{base_prompt}
+
+===뽀모도로 기록===
+일별 현황:
+{chr(10).join(summary_lines)}
+
+작업별 현황:
+{chr(10).join(task_lines)}
+
+총 세션 수: {len(logs)}
+총 집중 시간: {sum(l.get('duration_minutes',25) for l in logs)}분
+================="""
+    return get_ai(prompt, task="analysis")
+
 def weekly_report(notes, tasks, expenses, custom_format=None):
     done = [t for t in tasks if t.get("status")=="done"]
-    todo = [t for t in tasks if t.get("status")=="todo"]
+    todo = [t for t in tasks if t.get("status") in ["todo","backlog"]]
     meeting_notes = [n for n in notes if n.get("note_type")=="meeting"]
     notes_summary = "\n".join([f"- {n['title']}: {n.get('content','')[:100]}" for n in notes[:20]])
     tasks_summary = f"완료: {len(done)}개, 미완료: {len(todo)}개"
     meetings = "\n".join([f"- {n['title']}: {n.get('content','')[:200]}" for n in meeting_notes[:10]])
-    fmt = custom_format or """형식:\n## 📊 주간 업무 보고\n### 1. 핵심 성과\n### 2. 진행 중 업무\n### 3. 회의 요약\n### 4. 이슈/리스크\n### 5. 다음 주 계획\n### 6. 건의사항"""
+    fmt = custom_format or """형식:
+## 📊 주간 업무 보고
+### 1. 핵심 성과
+### 2. 진행 중 업무
+### 3. 회의 요약
+### 4. 이슈/리스크
+### 5. 다음 주 계획
+### 6. 건의사항"""
     return get_ai(f"""이번 주 업무 데이터 기반 주간 보고서:
 
 ## 노트 ({len(notes)}개):
@@ -162,15 +240,14 @@ def send_gmail(to, subj, body, sender, pw):
     from email.mime.multipart import MIMEMultipart
     try:
         msg = MIMEMultipart(); msg['From']=sender; msg['To']=to; msg['Subject']=subj
-        msg.attach(MIMEText(body, 'plain', 'utf-8'))
-        s = smtplib.SMTP('smtp.gmail.com', 587); s.starttls(); s.login(sender, pw); s.send_message(msg); s.quit()
+        msg.attach(MIMEText(body,'plain','utf-8'))
+        s = smtplib.SMTP('smtp.gmail.com',587); s.starttls(); s.login(sender,pw); s.send_message(msg); s.quit()
         return True, "Sent!"
     except Exception as e: return False, str(e)
 
 def file_to_markdown(file_obj):
     name = file_obj.name.lower()
-    if name.endswith(('.txt','.md')):
-        return file_obj.read().decode('utf-8')
+    if name.endswith(('.txt','.md')): return file_obj.read().decode('utf-8')
     elif name.endswith('.csv'):
         import pandas as pd; return pd.read_csv(file_obj).to_markdown()
     elif name.endswith('.xlsx'):
