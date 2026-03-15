@@ -83,23 +83,35 @@ if not st.session_state.logged_in and DB:
 
 # ===== Google OAuth 코드 처리 =====
 oauth_code = st.query_params.get("code","")
-if oauth_code and st.session_state.logged_in and GCAL and DB:
+if oauth_code and GCAL and DB:
     if not st.session_state.get("gcal_code_processed"):
-        token_data = exchange_code_for_token(oauth_code)
-        if token_data:
-            from datetime import timezone as tz
-            expiry = (now_kst() + timedelta(seconds=token_data.get("expires_in",3600))).isoformat()
-            save_google_tokens(
-                st.session_state.user["id"],
-                token_data.get("access_token"),
-                token_data.get("refresh_token",""),
-                expiry
-            )
-            st.session_state["gcal_code_processed"] = True
-            st.query_params.clear()
-            st.query_params["uid"] = str(st.session_state.user["id"])
-            st.success("✅ Google Calendar 연결됨!")
-            st.rerun()
+        # uid를 session_state 또는 별도 저장에서 가져옴
+        _oauth_uid = None
+        if st.session_state.logged_in and st.session_state.get("user"):
+            _oauth_uid = st.session_state.user["id"]
+        elif st.session_state.get("pre_oauth_uid"):
+            _oauth_uid = st.session_state["pre_oauth_uid"]
+            # uid로 로그인 복원
+            restored = get_user_by_id(_oauth_uid)
+            if restored:
+                st.session_state.logged_in = True
+                st.session_state.user = restored
+        if _oauth_uid:
+            token_data = exchange_code_for_token(oauth_code)
+            if token_data:
+                expiry = (now_kst() + timedelta(seconds=token_data.get("expires_in",3600))).isoformat()
+                save_google_tokens(
+                    _oauth_uid,
+                    token_data.get("access_token"),
+                    token_data.get("refresh_token",""),
+                    expiry
+                )
+                st.session_state["gcal_code_processed"] = True
+                st.session_state.pop("pre_oauth_uid", None)
+                st.query_params.clear()
+                st.query_params["uid"] = str(_oauth_uid)
+                st.success("✅ Google Calendar 연결됨!")
+                st.rerun()
 
 # ===== DESIGN SYSTEM =====
 th = st.session_state.theme
@@ -661,7 +673,11 @@ elif page=="📅 Calendar":
             auth_url = build_auth_url()
             if auth_url:
                 gcal_col1.info("Google Calendar를 연동하면 일정이 자동으로 동기화됩니다 (60초마다)")
-                gcal_col2.markdown(f'<a href="{auth_url}" target="_self"><button style="background:{D["accent"]};color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px;font-weight:500">Google 연결</button></a>',unsafe_allow_html=True)
+                # uid를 session_state에 저장 후 리디렉션
+                if gcal_col2.button("Google 연결", type="primary"):
+                    st.session_state["pre_oauth_uid"] = uid
+                    st.markdown(f'<meta http-equiv="refresh" content="0;url={auth_url}">', unsafe_allow_html=True)
+                    st.rerun()
             else:
                 gcal_col1.caption("Settings > Secrets에 GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET 추가 시 Google Calendar 연동 가능")
         else:
