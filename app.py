@@ -80,12 +80,28 @@ code{background:#2a2a2a !important;color:#f0a080 !important}
 </style>""", unsafe_allow_html=True)
 
 st.markdown("""<style>
-@media(max-width:768px){[data-testid="stHorizontalBlock"]>div{flex:100%!important;max-width:100%!important}}
+/* 모바일 기본 */
+@media(max-width:768px){
+  [data-testid="stHorizontalBlock"]>div{flex:100%!important;max-width:100%!important}
+  /* 칸반 4컬럼 → 2컬럼 */
+  div[data-testid="column"]:nth-child(n){min-width:48%!important}
+  /* 버튼 텍스트 숨기기 (작은 버튼) */
+  section[data-testid="stSidebar"]{width:280px!important}
+  /* 폰트 크기 조정 */
+  .stMarkdown p{font-size:0.9rem}
+  h2{font-size:1.3rem!important}
+}
+@media(max-width:480px){
+  div[data-testid="column"]:nth-child(n){min-width:100%!important}
+}
+/* 공통 카드/UI 스타일 */
 .pa-card{background:#fafafa;border-radius:10px;padding:12px 14px;margin:4px 0;border:1px solid #f0f0f0}
 .pa-breadcrumb{font-size:0.8rem;color:#888;margin-bottom:6px}
 .pa-empty{text-align:center;padding:32px 20px;color:#aaa}
 .pa-empty-icon{font-size:2.5rem;margin-bottom:8px}
 .pa-editing-badge{background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:6px 12px;margin-bottom:8px;font-size:0.85rem}
+/* 툴바 버튼 스타일 */
+button[kind="secondary"]{font-size:0.75rem!important;padding:2px 4px!important}
 </style>""", unsafe_allow_html=True)
 
 COLOR_PRESETS={"blue":"#3b82f6","red":"#ef4444","green":"#22c55e","purple":"#8b5cf6",
@@ -468,7 +484,7 @@ elif page=="📅 Calendar":
                                     delete_event(e["id"]); st.session_state.delete_confirm=None; st.rerun()
                                 else: st.session_state.delete_confirm=f"ev_{e['id']}"; st.rerun()
                     else: col.markdown('<div style="text-align:center;color:#aaa;font-size:12px;padding:8px">—</div>',unsafe_allow_html=True)
-            if st.session_state.get("delete_confirm","").startswith("ev_"):
+            if (st.session_state.get("delete_confirm") or "").startswith("ev_"):
                 st.warning("이 일정을 삭제할까요?")
                 dc1,dc2=st.columns(2)
                 if dc1.button("⚠️ 삭제",type="primary",key="ev_del_yes"):
@@ -494,7 +510,7 @@ elif page=="📅 Calendar":
                         if st.session_state.get("delete_confirm")==f"ev_{e['id']}":
                             delete_event(e["id"]); st.session_state.delete_confirm=None; st.rerun()
                         else: st.session_state.delete_confirm=f"ev_{e['id']}"; st.rerun()
-                if st.session_state.get("delete_confirm","").startswith("ev_"):
+                if (st.session_state.get("delete_confirm") or "").startswith("ev_"):
                     st.warning("이 일정을 삭제할까요?")
                     dc1,dc2=st.columns(2)
                     if dc1.button("⚠️ 삭제",type="primary",key="ev_del_yes2"):
@@ -716,7 +732,29 @@ elif page=="📝 Notes":
                 # 새 노트이거나 빈 노트면 타입별 기본 양식 적용
                 default_content=get_note_template(uid,nt_sel)
 
-        content=st.text_area("",value=default_content,height=380,label_visibility="collapsed",key="nc",placeholder="내용을 입력하세요...\n\nTip: - [ ] 항목 형식으로 입력하면 저장 시 Task로 자동 생성됩니다")
+        # 마크다운 툴바
+        st.markdown("""<div style="display:flex;gap:4px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid #e5e7eb;margin-bottom:6px">
+<span style="font-size:0.75rem;color:#888;align-self:center">서식:</span>
+</div>""", unsafe_allow_html=True)
+        # ===== 마크다운 툴바 =====
+        _tb_items = [
+            ("**B**","**텍스트**","굵게"),("_I_","_텍스트_","기울임"),("~~S~~","~~취소선~~","취소선"),
+            ("H1","# 제목\n","큰제목"),("H2","## 소제목\n","중제목"),("H3","### 항목\n","소제목"),
+            ("- 목록","- 항목\n","글머리"),("1. 번","1. 항목\n","번호"),
+            ("- [ ]","- [ ] 할일\n","Task"),
+            ("> 인용","> 인용문\n","인용"),
+            ("코드","```\n코드\n```\n","코드"),
+            ("---","---\n","구분선"),
+        ]
+        _tc = st.columns(12)
+        for _i, (_lbl, _insert, _tip) in enumerate(_tb_items):
+            if _tc[_i].button(_lbl, key=f"tb_{_i}", use_container_width=True, help=_tip):
+                _cur = st.session_state.get("nc", default_content or "")
+                _sep = "" if (not _cur or _cur.endswith("\n")) else "\n"
+                st.session_state["_tmpl"] = _cur + _sep + _insert
+                clear_nc(); st.rerun()
+
+        content=st.text_area("",value=default_content,height=360,label_visibility="collapsed",key="nc",placeholder="내용을 입력하세요...\n\nTip: - [ ] 항목 형식으로 입력하면 저장 시 Task로 자동 생성됩니다")
 
         uploaded=st.file_uploader("📎 파일 첨부",type=["txt","md","docx","xlsx","csv","png","jpg","jpeg","pdf"],key="nf_upload")
         if uploaded:
@@ -857,7 +895,7 @@ elif page=="📝 Notes":
             st.session_state.editing_note=None; st.session_state.show_related=False; clear_nc(); clear_ai(); st.rerun()
         if sc[2].button("🗑️ 삭제",use_container_width=True):
             st.session_state.delete_confirm=f"note_{note.get('id','')}"; st.rerun()
-        if st.session_state.get("delete_confirm","").startswith("note_"):
+        if (st.session_state.get("delete_confirm") or "").startswith("note_"):
             st.error("정말 이 노트를 삭제할까요? 복구할 수 없습니다.")
             dy1,dy2=st.columns(2)
             if dy1.button("⚠️ 삭제",type="primary",key="note_del_yes"):
