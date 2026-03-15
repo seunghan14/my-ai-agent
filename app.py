@@ -95,19 +95,19 @@ D = {
         "bg":"#FFFFFF","surface":"#F7F7F8","surface2":"#EFEFEF",
         "border":"#E5E5E5","border2":"#D0D0D0",
         "text":"#0F0F0F","text2":"#5A5A5A","text3":"#9A9A9A",
-        "accent":"#2563EB","accent_h":"#1D4ED8",
+        "accent":"#4F46E5","accent_h":"#4338CA",
         "success":"#059669","warning":"#D97706","danger":"#DC2626",
         "sidebar":"#F9F9F9","input_bg":"#F7F7F8",
         "placeholder":"#AAAAAA",
     },
     "dark":{
-        "bg":"#0F0F0F","surface":"#1A1A1A","surface2":"#242424",
-        "border":"#2A2A2A","border2":"#383838",
-        "text":"#EBEBEB","text2":"#A0A0A0","text3":"#606060",
-        "accent":"#3B82F6","accent_h":"#2563EB",
-        "success":"#10B981","warning":"#F59E0B","danger":"#EF4444",
-        "sidebar":"#111111","input_bg":"#1E1E1E",
-        "placeholder":"#505050",
+        "bg":"#191919","surface":"#222222","surface2":"#2A2A2A",
+        "border":"#333333","border2":"#444444",
+        "text":"#E8E8E8","text2":"#A0A0A0","text3":"#666666",
+        "accent":"#4F46E5","accent_h":"#4338CA",
+        "success":"#10B981","warning":"#F59E0B","danger":"#DC2626",
+        "sidebar":"#141414","input_bg":"#222222",
+        "placeholder":"#555555",
     }
 }[th]
 
@@ -134,8 +134,12 @@ section[data-testid="stSidebar"] p,
 section[data-testid="stSidebar"] span,
 section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] div {{ color:{D['text']} !important; }}
-section[data-testid="stSidebar"] .stRadio label {{ font-size:13.5px !important; color:{D['text2']} !important; padding:4px 8px !important; border-radius:6px; transition:background 0.1s; }}
+section[data-testid="stSidebar"] .stRadio label {{ font-size:13.5px !important; color:{D['text2']} !important; padding:4px 8px !important; border-radius:6px; transition:background 0.1s; background:transparent !important; }}
 section[data-testid="stSidebar"] .stRadio label:hover {{ background:{D['surface2']} !important; color:{D['text']} !important; }}
+/* Hide radio circle in sidebar */
+section[data-testid="stSidebar"] .stRadio div[data-testid="stMarkdownContainer"] {{ display:none; }}
+div[data-testid="stRadio"] > div > label > div:first-child {{ background:{D['surface']} !important; border-color:{D['border']} !important; }}
+div[data-testid="stRadio"] > div > label > div:first-child > div {{ background:{D['accent']} !important; }}
 
 /* ===== INPUTS ===== */
 .stTextInput input, .stTextArea textarea, .stNumberInput input {{
@@ -175,21 +179,29 @@ section[data-testid="stSidebar"] .stRadio label:hover {{ background:{D['surface2
     padding:6px 14px !important;
     border:1px solid {D['border']} !important;
     background:{D['surface']} !important;
-    color:{D['text']} !important;
+    color:{D['text2']} !important;
     transition:all 0.15s !important;
     box-shadow:none !important;
 }}
 .stButton > button:hover {{
     background:{D['surface2']} !important;
     border-color:{D['border2']} !important;
+    color:{D['text']} !important;
 }}
 .stButton > button[kind="primary"] {{
     background:{D['accent']} !important;
-    color:#fff !important;
+    color:#FFFFFF !important;
     border-color:{D['accent']} !important;
+    font-weight:600 !important;
 }}
 .stButton > button[kind="primary"]:hover {{
     background:{D['accent_h']} !important;
+    color:#FFFFFF !important;
+}}
+/* Danger 버튼 - 삭제용 빨간색 */
+.stButton > button[kind="primary"][data-danger="true"] {{
+    background:{D['danger']} !important;
+    border-color:{D['danger']} !important;
 }}
 
 /* ===== METRICS ===== */
@@ -251,6 +263,47 @@ div[data-testid="stNumberInput"] button {{ background:{D['surface2']} !important
   h2{{font-size:1.2rem!important}}
   .stApp p{{font-size:13px}}
 }}
+
+/* ===== RADIO/CHECKBOX FIX ===== */
+div[data-baseweb="radio"] div {{ background:{D['surface']} !important; border-color:{D['border']} !important; }}
+div[data-baseweb="radio"] div[data-checked="true"] {{ background:{D['accent']} !important; border-color:{D['accent']} !important; }}
+div[data-baseweb="checkbox"] div {{ background:{D['surface']} !important; border-color:{D['border']} !important; }}
+div[data-baseweb="checkbox"] div[data-checked="true"] {{ background:{D['accent']} !important; border-color:{D['accent']} !important; }}
+
+/* ===== TOGGLE ===== */
+div[data-testid="stToggle"] {{ background:{D['surface']} !important; }}
+div[data-testid="stToggle"] > div {{ background:{D['surface2']} !important; }}
+
+/* ===== MULTISELECT ===== */
+div[data-baseweb="tag"] {{ background:{D['accent']}30 !important; color:{D['text']} !important; }}
+
+/* ===== DATE/TIME INPUT ===== */
+div[data-testid="stDateInput"] input {{ background:{D['input_bg']} !important; color:{D['text']} !important; border-color:{D['border']} !important; }}
+div[data-testid="stTimeInput"] input {{ background:{D['input_bg']} !important; color:{D['text']} !important; border-color:{D['border']} !important; }}
+div[data-testid="stDateInput"] > div {{ background:{D['input_bg']} !important; }}
+div[data-testid="stTimeInput"] > div {{ background:{D['input_bg']} !important; }}
+[data-baseweb="calendar"] {{ background:{D['surface']} !important; color:{D['text']} !important; }}
+[data-baseweb="calendar"] * {{ color:{D['text']} !important; }}
+[data-baseweb="calendar"] button {{ background:{D['surface']} !important; color:{D['text']} !important; }}
+
+/* ===== SLIDER ===== */
+div[data-testid="stSlider"] div {{ background:{D['surface2']} !important; }}
+div[data-testid="stSlider"] div[role="slider"] {{ background:{D['accent']} !important; border-color:{D['accent']} !important; }}
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar {{ width:6px; height:6px; }}
+::-webkit-scrollbar-track {{ background:{D['surface']} !important; }}
+::-webkit-scrollbar-thumb {{ background:{D['border2']} !important; border-radius:3px; }}
+
+/* ===== MARKDOWN CONTAINER ===== */
+div[data-testid="stMarkdownContainer"] {{ background:transparent !important; }}
+
+/* ===== DOWNLOAD BUTTON ===== */
+div[data-testid="stDownloadButton"] button {{ background:{D['surface']} !important; color:{D['text']} !important; border-color:{D['border']} !important; }}
+
+/* ===== NUMBER INPUT ===== */
+div[data-testid="stNumberInput"] {{ background:transparent !important; }}
+div[data-testid="stNumberInput"] > div {{ background:{D['input_bg']} !important; border-color:{D['border']} !important; border-radius:8px; }}
 
 /* ===== CUSTOM COMPONENTS ===== */
 .pa-logo {{
@@ -417,15 +470,26 @@ with st.sidebar:
 
         # 로고: 이름 크게 + 홈 버튼
         avatar_url=get_avatar_url(uid) if DB else None
+        # Logo - pure text style, click via button hidden behind
         if avatar_url:
-            st.markdown(f'<div style="padding:20px 0 8px"><img src="{avatar_url}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid {D["border"]}"></div>',unsafe_allow_html=True)
-            if st.button(dname.upper(),key="home_btn",use_container_width=False):
-                st.session_state.current_page="Dashboard"; st.rerun()
+            st.markdown(f'''<div style="padding:20px 4px 6px;display:flex;align-items:center;gap:12px">
+<img src="{avatar_url}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:2px solid {D["border"]}">
+<div>
+<div style="font-size:1.4rem;font-weight:800;color:{D["text"]};letter-spacing:-0.03em;line-height:1.1">{dname.upper()}</div>
+<div style="font-size:10px;color:{D["text3"]};letter-spacing:0.08em;text-transform:uppercase;margin-top:2px">Personal Assistant</div>
+</div></div>''',unsafe_allow_html=True)
         else:
-            if st.button(dname.upper(),key="home_btn",use_container_width=True):
+            st.markdown(f'''<div style="padding:20px 4px 6px">
+<div style="font-size:1.8rem;font-weight:800;color:{D["text"]};letter-spacing:-0.04em;line-height:1">{dname.upper()}</div>
+<div style="font-size:10px;color:{D["text3"]};letter-spacing:0.1em;text-transform:uppercase;margin-top:4px;margin-bottom:4px">Personal Assistant</div>
+</div>''',unsafe_allow_html=True)
+        # Hidden home button
+        st.markdown(f'<style>.home-btn-wrap button{{opacity:0;height:0;padding:0;margin:-8px 0 0 0;min-height:0!important;border:none!important}}</style>',unsafe_allow_html=True)
+        with st.container():
+            st.markdown('<div class="home-btn-wrap">',unsafe_allow_html=True)
+            if st.button("home",key="home_btn",use_container_width=True):
                 st.session_state.current_page="Dashboard"; st.rerun()
-            st.markdown(f'<style>div[data-testid="stButton"] button[key="home_btn"]{{font-size:1.6rem!important;font-weight:800!important;letter-spacing:-0.03em!important;background:transparent!important;border:none!important;color:{D["text"]}!important;padding:4px 0!important;text-align:left!important;}}</style>',unsafe_allow_html=True)
-        st.markdown(f'<div class="pa-logo-sub">Personal Assistant</div>',unsafe_allow_html=True)
+            st.markdown('</div>',unsafe_allow_html=True)
 
         # Quick Capture
         st.markdown(f'<div class="pa-section">Quick Capture</div>',unsafe_allow_html=True)
@@ -522,11 +586,29 @@ if page=="Dashboard":
         todo=[t for t in tasks if t["status"]=="todo"]
         doing=[t for t in tasks if t["status"]=="doing"]
         done_t=[t for t in tasks if t["status"]=="done"]
+        # 오늘의 문구 - 인사말 바로 아래 상단 고정
+        if dw.get("quote",True):
+            user_data=user if user else {}
+            settings_str=user_data.get("settings") or "{}"
+            try: user_settings=json.loads(settings_str) if isinstance(settings_str,str) else (settings_str or {})
+            except: user_settings={}
+            qt=user_settings.get("quote_type","motivational")
+            manual_q=user_settings.get("manual_quote","")
+            if qt=="manual" and manual_q:
+                st.markdown(f'<div class="pa-quote"><div class="pa-quote-text">"{manual_q}"</div></div>',unsafe_allow_html=True)
+            elif qt in ["bible","motivational","both"] and qt!="none":
+                for qt2 in (["bible","motivational"] if qt=="both" else [qt]):
+                    q=get_daily_quote(uid,qt2)
+                    if q:
+                        lines2=q.strip().split("\n"); text2=lines2[0]; ref2=lines2[1] if len(lines2)>1 else ""
+                        st.markdown(f'<div class="pa-quote"><div class="pa-quote-text">"{text2}"</div>{"<div class=pa-quote-ref>"+ref2+"</div>" if ref2 else ""}</div>',unsafe_allow_html=True)
+
         c1,c2,c3,c4=st.columns(4)
         for col,lbl,cnt,pg in [(c1,"Backlog",len(backlog),"Tasks"),(c2,"To Do",len(todo),"Tasks"),(c3,"진행 중",len(doing),"Tasks"),(c4,"완료",len(done_t),"Tasks")]:
             col.metric(lbl,cnt)
 
         for wk in st.session_state.dash_widget_order:
+            if wk=="quote": continue  # Already shown above
             if not dw.get(wk,True): continue
             if wk=="quote":
                 # 오늘의 문구
@@ -705,18 +787,19 @@ elif page=="Calendar":
         if view=="Monthly":
             # 월 이동 네비게이션
             nav1,nav2,nav3,nav4,nav5=st.columns([1,1,4,1,1])
-            if nav1.button("◀◀",key="py"): st.session_state.cal_year-=1; st.rerun()
-            if nav2.button("◀",key="pm"):
+            if nav1.button("«",key="py",help="이전 년도"): st.session_state.cal_year-=1; st.rerun()
+            if nav2.button("‹",key="pm",help="이전 달"):
                 if cm==1: st.session_state.cal_month=12; st.session_state.cal_year-=1
                 else: st.session_state.cal_month-=1
                 st.rerun()
             nav3.markdown(f'<div style="text-align:center;font-size:1rem;font-weight:600;color:{D["text"]};padding:8px 0">{cy}년 {cm}월</div>',unsafe_allow_html=True)
-            if nav4.button("▶",key="nm"):
+            if nav4.button("›",key="nm",help="다음 달"):
                 if cm==12: st.session_state.cal_month=1; st.session_state.cal_year+=1
                 else: st.session_state.cal_month+=1
                 st.rerun()
-            if nav5.button("▶▶",key="ny"): st.session_state.cal_year+=1; st.rerun()
-            if st.button("오늘",key="today_btn"): st.session_state.cal_year=today.year; st.session_state.cal_month=today.month; st.rerun()
+            if nav5.button("»",key="ny",help="다음 년도"): st.session_state.cal_year+=1; st.rerun()
+            c_today_col, _ = st.columns([1,5])
+            if c_today_col.button("오늘",key="today_btn"): st.session_state.cal_year=today.year; st.session_state.cal_month=today.month; st.rerun()
 
             ms=date(cy,cm,1); last_day=calendar.monthrange(cy,cm)[1]; me=ms.replace(day=last_day)
             evs=get_events(uid,datetime.combine(ms,datetime.min.time()),datetime.combine(me,datetime.max.time()))
@@ -725,50 +808,45 @@ elif page=="Calendar":
             hcols=st.columns(7)
             for i,dn in enumerate(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]):
                 color=D["danger"] if i==6 else D["accent"] if i==5 else D["text3"]
-                hcols[i].markdown(f'<div style="text-align:center;font-size:11px;font-weight:600;color:{color};padding:4px 0">{dn}</div>',unsafe_allow_html=True)
+                hcols[i].markdown(f'<div style="text-align:center;font-size:11px;font-weight:600;color:{color};padding:4px 0;border-bottom:1px solid {D["border"]}">{dn}</div>',unsafe_allow_html=True)
 
-            # 날짜 셀 - 아이폰 스타일
+            # 날짜 셀 - 아이폰 스타일 (버튼 없이 HTML로만)
             for week in calendar.monthcalendar(cy,cm):
                 cols=st.columns(7)
                 for i,day in enumerate(week):
                     with cols[i]:
                         if day==0:
-                            st.markdown('<div style="min-height:52px"></div>',unsafe_allow_html=True)
+                            st.markdown(f'<div style="min-height:60px;border-bottom:1px solid {D["border"]}20"></div>',unsafe_allow_html=True)
                         else:
                             day_evs=[e for e in evs if e.get("start_time","")[:10]==f"{cy}-{cm:02d}-{day:02d}"]
                             is_today=(day==today.day and cy==today.year and cm==today.month)
-                            # 날짜 숫자 스타일
+                            day_color=D["danger"] if i==6 else D["accent"] if i==5 else D["text"]
                             if is_today:
-                                day_html=f'<div style="display:inline-flex;width:26px;height:26px;background:{D["accent"]};border-radius:50%;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff">{day}</div>'
+                                num_html=f'<div style="display:inline-flex;width:24px;height:24px;background:{D["accent"]};border-radius:50%;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;margin-bottom:4px">{day}</div>'
                             else:
-                                day_color=D["danger"] if i==6 else D["accent"] if i==5 else D["text"]
-                                day_html=f'<div style="font-size:13px;font-weight:500;color:{day_color};padding:4px 0">{day}</div>'
-                            # 일정 점 표시
+                                num_html=f'<div style="font-size:13px;font-weight:500;color:{day_color};margin-bottom:4px">{day}</div>'
                             dots=""
                             if day_evs:
-                                shown=day_evs[:3]
-                                for e in shown:
-                                    c=COLOR_PRESETS.get(e.get("color_label","blue"),"#3B82F6")
-                                    dots+=f'<span style="display:inline-block;width:6px;height:6px;background:{c};border-radius:50%;margin:0 1px"></span>'
+                                for e in day_evs[:3]:
+                                    c2=COLOR_PRESETS.get(e.get("color_label","blue"),"#3B82F6")
+                                    dots+=f'<span style="display:inline-block;width:5px;height:5px;background:{c2};border-radius:50%;margin:0 1px;flex-shrink:0"></span>'
                                 if len(day_evs)>3:
-                                    dots+=f'<span style="font-size:9px;color:{D["text3"]}">+{len(day_evs)-3}</span>'
-                            cell_html=f'<div style="min-height:52px;padding:4px;border-radius:8px;cursor:pointer" onclick="">{day_html}<div style="display:flex;flex-wrap:wrap;gap:1px;margin-top:3px">{dots}</div></div>'
-                            st.markdown(cell_html,unsafe_allow_html=True)
-                            # 클릭 → Daily 뷰로 이동
-                            if st.button(str(day),key=f"cd_{cy}{cm}{day}",use_container_width=True,help=f"{len(day_evs)}개 일정" if day_evs else "일정 없음"):
-                                st.session_state.cal_prefill_date=date(cy,cm,day)
-                                st.session_state.cal_year=cy; st.session_state.cal_month=cm
-                                # Switch to daily view by storing selected date and changing radio
+                                    dots+=f'<span style="font-size:9px;color:{D["text3"]};margin-left:2px">+{len(day_evs)-3}</span>'
+                            cell=f'<div style="min-height:60px;padding:6px 4px;border-bottom:1px solid {D["border"]}20">{num_html}<div style="display:flex;flex-wrap:wrap;align-items:center;gap:2px">{dots}</div></div>'
+                            st.markdown(cell,unsafe_allow_html=True)
+                            # 클릭 버튼 (스타일 숨김)
+                            if st.button(f"{day}",key=f"cd_{cy}{cm}{day}",use_container_width=True):
                                 st.session_state["cal_jump_daily"]=date(cy,cm,day)
+                                st.session_state.cal_prefill_date=date(cy,cm,day)
                                 st.rerun()
-            # 날짜 버튼 숨기기 CSS
-            st.markdown(f"""<style>
-div[data-testid="stHorizontalBlock"] .stButton>button {{
-    background:transparent !important; border:none !important; color:transparent !important;
-    padding:0 !important; height:0 !important; min-height:0 !important;
-    position:absolute; opacity:0;
+            # 날짜 버튼 완전 투명화
+            st.markdown(f'''<style>
+[data-testid="stHorizontalBlock"] [data-testid="stVerticalBlock"] .stButton > button {{
+    opacity:0 !important; height:4px !important; min-height:4px !important;
+    padding:0 !important; margin:-4px 0 0 0 !important; border:none !important;
+    background:transparent !important; cursor:pointer !important;
 }}
-</style>""",unsafe_allow_html=True)
+</style>''',unsafe_allow_html=True)
 
         elif view=="Weekly":
             nav1,nav2,nav3,nav4=st.columns([1,1,4,1])
