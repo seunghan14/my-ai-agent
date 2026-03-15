@@ -1,4 +1,4 @@
-"""DB Utils V3 - All Supabase operations"""
+"""DB Utils V4.1 - All Supabase operations"""
 import hashlib, streamlit as st
 from supabase import create_client
 from datetime import datetime, date, timedelta
@@ -9,7 +9,7 @@ def get_sb():
     if not url or not key: return None
     return create_client(url, key)
 
-def _q(table): 
+def _q(table):
     sb = get_sb()
     return sb.table(table) if sb else None
 
@@ -134,12 +134,6 @@ def tag_note(nid, tid):
         except: pass
     return False
 
-def get_note_tags(nid):
-    q = _q("note_tags")
-    if not q: return []
-    try: return q.select("tag_id, tags(name, color)").eq("note_id", nid).execute().data or []
-    except: return []
-
 # === NOTE LINKS ===
 def link_notes(s, t):
     q = _q("note_links")
@@ -158,7 +152,7 @@ def get_all_links(uid):
     notes = get_notes(uid)
     nids = [n["id"] for n in notes]
     q = _q("note_links")
-    if not q: return []
+    if not q or not nids: return []
     try: return q.select("source_id, target_id").in_("source_id", nids).execute().data or []
     except: return []
 
@@ -280,7 +274,8 @@ def bulk_add_expenses(uid, items):
     if not q: return False
     try:
         for e in items:
-            q.insert({"user_id": uid, "amount": e["amount"], "category": e["category"], "description": e.get("description",""), "expense_date": e.get("date", str(date.today()))}).execute()
+            q.insert({"user_id": uid, "amount": e["amount"], "category": e["category"],
+                      "description": e.get("description",""), "expense_date": e.get("date", str(date.today()))}).execute()
         return True
     except: return False
 
@@ -320,7 +315,7 @@ def delete_loan(lid):
         except: pass
     return False
 
-# === HABITS ===
+# === HABITS (V4.1 - numeric support) ===
 def get_habits(uid):
     q = _q("habits")
     return q.select("*").eq("user_id", uid).order("created_at").execute().data or [] if q else []
@@ -330,6 +325,16 @@ def create_habit(uid, name, icon="✅"):
     if not q: return None
     try: return q.insert({"user_id": uid, "name": name, "icon": icon}).execute().data[0]
     except: return None
+
+def create_habit_v2(uid, name, icon="✅", habit_type="check", target_value=1, unit=""):
+    q = _q("habits")
+    if not q: return None
+    try:
+        return q.insert({"user_id": uid, "name": name, "icon": icon,
+                         "habit_type": habit_type, "target_value": float(target_value), "unit": unit}).execute().data[0]
+    except:
+        try: return q.insert({"user_id": uid, "name": name, "icon": icon}).execute().data[0]
+        except: return None
 
 def delete_habit(hid):
     q = _q("habits")
@@ -348,6 +353,22 @@ def toggle_habit(hid, uid, d=None):
             q.update({"completed": not r.data[0]["completed"]}).eq("id", r.data[0]["id"]).execute()
         else:
             q.insert({"habit_id": hid, "user_id": uid, "log_date": ds, "completed": True}).execute()
+        return True
+    except: return False
+
+def toggle_habit_value(hid, uid, value=0, d=None):
+    q = _q("habit_logs")
+    if not q: return False
+    ds = str(d or date.today())
+    try:
+        r = q.select("*").eq("habit_id", hid).eq("log_date", ds).execute()
+        completed = float(value) > 0
+        if r.data:
+            try: q.update({"completed": completed, "value": float(value)}).eq("id", r.data[0]["id"]).execute()
+            except: q.update({"completed": completed}).eq("id", r.data[0]["id"]).execute()
+        else:
+            try: q.insert({"habit_id": hid, "user_id": uid, "log_date": ds, "completed": completed, "value": float(value)}).execute()
+            except: q.insert({"habit_id": hid, "user_id": uid, "log_date": ds, "completed": completed}).execute()
         return True
     except: return False
 
@@ -375,12 +396,16 @@ def del_watch(wid):
         except: pass
     return False
 
-# === POMODORO ===
-def log_pomo(uid, dur=25, task=""):
+# === POMODORO (V4.1 - status + interruptions) ===
+def log_pomo(uid, dur=25, task="", status="complete", interruptions=0):
     q = _q("pomodoro_logs")
     if not q: return None
-    try: return q.insert({"user_id": uid, "duration_minutes": dur, "task_name": task}).execute().data[0]
-    except: return None
+    try:
+        return q.insert({"user_id": uid, "duration_minutes": dur, "task_name": task,
+                         "status": status, "interruptions": interruptions}).execute().data[0]
+    except:
+        try: return q.insert({"user_id": uid, "duration_minutes": dur, "task_name": task}).execute().data[0]
+        except: return None
 
 def get_pomo_logs(uid, days=7):
     q = _q("pomodoro_logs")
