@@ -92,21 +92,21 @@ if oauth_code and GCAL and DB:
 th = st.session_state.theme
 D = {
     "light":{
-        "bg":"#FFFFFF","surface":"#F7F7F8","surface2":"#EFEFEF",
-        "border":"#E5E5E5","border2":"#D0D0D0",
-        "text":"#0F0F0F","text2":"#5A5A5A","text3":"#9A9A9A",
+        "bg":"#FFFFFF","surface":"#F7F6F3","surface2":"#EFEDE8",
+        "border":"#E9E9E7","border2":"#D3D1CB",
+        "text":"#37352F","text2":"#787774","text3":"#AEACAA",
         "accent":"#4F46E5","accent_h":"#4338CA",
         "success":"#059669","warning":"#D97706","danger":"#DC2626",
-        "sidebar":"#F9F9F9","input_bg":"#F7F7F8",
-        "placeholder":"#AAAAAA",
+        "sidebar":"#F7F6F3","input_bg":"#FFFFFF",
+        "placeholder":"#AEACAA",
     },
     "dark":{
-        "bg":"#191919","surface":"#222222","surface2":"#2A2A2A",
-        "border":"#333333","border2":"#444444",
-        "text":"#E8E8E8","text2":"#A0A0A0","text3":"#666666",
+        "bg":"#191919","surface":"#252525","surface2":"#2F2F2F",
+        "border":"#373737","border2":"#474747",
+        "text":"#CFCFCF","text2":"#9B9B9B","text3":"#606060",
         "accent":"#4F46E5","accent_h":"#4338CA",
         "success":"#10B981","warning":"#F59E0B","danger":"#DC2626",
-        "sidebar":"#141414","input_bg":"#222222",
+        "sidebar":"#202020","input_bg":"#252525",
         "placeholder":"#555555",
     }
 }[th]
@@ -130,16 +130,40 @@ h3 {{ font-size:1.05rem !important; }}
 /* ===== SIDEBAR ===== */
 section[data-testid="stSidebar"] {{ background:{D['sidebar']} !important; border-right:1px solid {D['border']} !important; }}
 section[data-testid="stSidebar"] > div {{ background:{D['sidebar']} !important; padding-top:0 !important; }}
-section[data-testid="stSidebar"] p,
-section[data-testid="stSidebar"] span,
-section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] p {{ color:{D['text']} !important; }}
+section[data-testid="stSidebar"] span {{ color:{D['text']} !important; }}
 section[data-testid="stSidebar"] div {{ color:{D['text']} !important; }}
-section[data-testid="stSidebar"] .stRadio label {{ font-size:13.5px !important; color:{D['text2']} !important; padding:4px 8px !important; border-radius:6px; transition:background 0.1s; background:transparent !important; }}
-section[data-testid="stSidebar"] .stRadio label:hover {{ background:{D['surface2']} !important; color:{D['text']} !important; }}
-/* Hide radio circle in sidebar */
-section[data-testid="stSidebar"] .stRadio div[data-testid="stMarkdownContainer"] {{ display:none; }}
-div[data-testid="stRadio"] > div > label > div:first-child {{ background:{D['surface']} !important; border-color:{D['border']} !important; }}
-div[data-testid="stRadio"] > div > label > div:first-child > div {{ background:{D['accent']} !important; }}
+section[data-testid="stSidebar"] label {{ color:{D['text']} !important; }}
+/* Notion-style menu: hide radio circles, show text with hover/selected bg */
+section[data-testid="stSidebar"] div[data-testid="stRadio"] > div {{
+    display:flex; flex-direction:column; gap:1px;
+}}
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label {{
+    font-size:14px !important;
+    color:{D['text2']} !important;
+    padding:5px 10px !important;
+    border-radius:6px !important;
+    cursor:pointer !important;
+    transition:background 0.1s !important;
+    display:flex !important;
+    align-items:center !important;
+    background:transparent !important;
+    width:100% !important;
+}}
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label:hover {{
+    background:{D['surface2']} !important;
+    color:{D['text']} !important;
+}}
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked),
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has([aria-checked="true"]) {{
+    background:{D['surface2']} !important;
+    color:{D['text']} !important;
+    font-weight:500 !important;
+}}
+/* Hide radio input circles completely */
+section[data-testid="stSidebar"] div[data-testid="stRadio"] label > div:first-child {{
+    display:none !important;
+}}
 
 /* ===== INPUTS ===== */
 .stTextInput input, .stTextArea textarea, .stNumberInput input {{
@@ -173,35 +197,40 @@ div[data-testid="stRadio"] > div > label > div:first-child > div {{ background:{
 
 /* ===== BUTTONS ===== */
 .stButton > button {{
-    border-radius:8px !important;
+    border-radius:6px !important;
     font-size:13.5px !important;
     font-weight:500 !important;
-    padding:6px 14px !important;
+    padding:5px 14px !important;
     border:1px solid {D['border']} !important;
     background:{D['surface']} !important;
     color:{D['text2']} !important;
-    transition:all 0.15s !important;
+    transition:all 0.12s !important;
     box-shadow:none !important;
+    line-height:1.5 !important;
 }}
 .stButton > button:hover {{
     background:{D['surface2']} !important;
     border-color:{D['border2']} !important;
     color:{D['text']} !important;
 }}
-.stButton > button[kind="primary"] {{
+/* Primary = Indigo + White text */
+.stButton > button[kind="primary"],
+button[kind="primary"] {{
     background:{D['accent']} !important;
     color:#FFFFFF !important;
-    border-color:{D['accent']} !important;
+    border:1px solid {D['accent']} !important;
     font-weight:600 !important;
 }}
 .stButton > button[kind="primary"]:hover {{
     background:{D['accent_h']} !important;
     color:#FFFFFF !important;
+    border-color:{D['accent_h']} !important;
 }}
-/* Danger 버튼 - 삭제용 빨간색 */
-.stButton > button[kind="primary"][data-danger="true"] {{
-    background:{D['danger']} !important;
-    border-color:{D['danger']} !important;
+/* Force white text - belt and suspenders */
+[data-testid="stButton"] button[kind="primary"] *,
+[data-testid="stButton"] button[kind="primary"] p,
+[data-testid="stButton"] button[kind="primary"] span {{
+    color:#FFFFFF !important;
 }}
 
 /* ===== METRICS ===== */
@@ -307,14 +336,15 @@ div[data-testid="stNumberInput"] > div {{ background:{D['input_bg']} !important;
 
 /* ===== CUSTOM COMPONENTS ===== */
 .pa-logo {{
-    font-size:2rem; font-weight:800; color:{D['text']};
-    letter-spacing:-0.04em; padding:24px 0 8px;
+    font-size:1.6rem; font-weight:700; color:{D['text']};
+    letter-spacing:-0.03em; padding:20px 0 2px;
     cursor:pointer; transition:opacity 0.15s;
     font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;
+    line-height:1.2;
 }}
 .pa-logo:hover {{ opacity:0.7; }}
-.pa-logo-sub {{ font-size:11px; color:{D['text3']}; letter-spacing:0.06em; text-transform:uppercase; margin-top:-4px; padding-bottom:16px; }}
-.pa-section {{ font-size:11px; font-weight:600; color:{D['text3']}; letter-spacing:0.08em; text-transform:uppercase; margin:20px 0 8px; }}
+.pa-logo-sub {{ font-size:11px; color:{D['text3']}; letter-spacing:0.04em; text-transform:uppercase; margin-top:2px; padding-bottom:12px; }}
+.pa-section {{ font-size:11px; font-weight:600; color:{D['text3']}; letter-spacing:0.06em; text-transform:uppercase; margin:16px 0 6px; padding:0 2px; }}
 .pa-card {{ background:{D['surface']}; border:1px solid {D['border']}; border-radius:12px; padding:14px 16px; margin:6px 0; }}
 .pa-breadcrumb {{ font-size:12px; color:{D['text3']}; margin-bottom:10px; display:flex; align-items:center; gap:6px; }}
 .pa-empty {{ text-align:center; padding:40px 20px; color:{D['text3']}; }}
@@ -421,6 +451,25 @@ def get_daily_quote(uid, quote_type="motivational"):
         st.session_state[cache_key]=result
         return result
     except: return ""
+
+# ===== EMOJI PICKER =====
+EMOJI_CATEGORIES = {
+    "자주 쓰는": ["✅","📝","💡","📅","🎯","🔥","⭐","❤️","👍","🙏","💪","🎉","📌","🔔","⚡","🌟","✨","🚀","💰","📊"],
+    "감정/활동": ["😊","😎","🤔","😅","🥳","💻","📚","🏃","🧘","🎵","🎨","🍎","☕","🌙","☀️","🌈","❄️","🔑","🎁","🏆"],
+    "업무/생산성": ["📋","📂","🗂️","📊","📈","📉","🖊️","📧","📞","💬","🔍","🔎","⚙️","🛠️","📐","💾","🖥️","📱","🌐","🔗"],
+    "건강/운동": ["🏋️","🚴","🧗","⚽","🏀","🎾","🏊","🤸","🥗","💊","🩺","❤️‍🔥","🧠","🦷","👁️","💤","🛏️","🥤","🍵","🥦"],
+}
+
+def emoji_picker(key, current=""):
+    """Returns selected emoji or current value"""
+    with st.expander(f"{current or '😊'} 이모지 선택", expanded=False):
+        for cat, emojis in EMOJI_CATEGORIES.items():
+            st.caption(cat)
+            cols = st.columns(10)
+            for i, em in enumerate(emojis):
+                if cols[i%10].button(em, key=f"ep_{key}_{cat}_{i}"):
+                    return em
+    return current
 
 # ===== 임시저장 =====
 cpn=st.session_state.current_page; ppn=st.session_state.get("prev_page",cpn)
@@ -832,6 +881,11 @@ elif page=="Calendar":
                                     dots+=f'<span style="display:inline-block;width:5px;height:5px;background:{c2};border-radius:50%;margin:0 1px;flex-shrink:0"></span>'
                                 if len(day_evs)>3:
                                     dots+=f'<span style="font-size:9px;color:{D["text3"]};margin-left:2px">+{len(day_evs)-3}</span>'
+                            # Task 마감 표시 (주황 다이아몬드)
+                            day_str=f"{cy}-{cm:02d}-{day:02d}"
+                            day_tasks=[t for t in get_tasks(uid) if t.get("due_date")==day_str and t["status"]!="done"]
+                            if day_tasks:
+                                dots+=f'<span style="display:inline-block;width:5px;height:5px;background:{D["warning"]};border-radius:1px;margin:0 1px;transform:rotate(45deg);flex-shrink:0"></span>'
                             cell=f'<div style="min-height:60px;padding:6px 4px;border-bottom:1px solid {D["border"]}20">{num_html}<div style="display:flex;flex-wrap:wrap;align-items:center;gap:2px">{dots}</div></div>'
                             st.markdown(cell,unsafe_allow_html=True)
                             # 클릭 버튼 (스타일 숨김)
@@ -871,12 +925,16 @@ elif page=="Calendar":
             for i,col in enumerate(ec):
                 day=ws+timedelta(i); devs=[e for e in evs if e.get("start_time","")[:10]==str(day)]
                 with col:
-                    if devs:
+                    day_tasks_w=[t for t in get_tasks(uid) if t.get("due_date")==str(day) and t["status"]!="done"]
+                    if devs or day_tasks_w:
                         for e in devs:
                             color=COLOR_PRESETS.get(e.get("color_label","blue"),"#3B82F6")
                             gcal_badge="☁" if e.get("source") in ["google","both"] else ""
                             st.markdown(f'<div style="background:{color}18;border-left:2px solid {color};padding:4px 6px;margin:2px 0;border-radius:4px;font-size:11px"><b>{e.get("start_time","")[11:16]}</b>{gcal_badge}<br>{e["title"][:12]}</div>',unsafe_allow_html=True)
-                    else: col.markdown(f'<div style="text-align:center;color:{D["text3"]};font-size:20px;padding:12px">·</div>',unsafe_allow_html=True)
+                        for t in day_tasks_w[:2]:
+                            st.markdown(f'<div style="background:{D["warning"]}18;border-left:2px solid {D["warning"]};padding:3px 6px;margin:2px 0;border-radius:4px;font-size:11px">◆ {t["title"][:12]}</div>',unsafe_allow_html=True)
+                    else:
+                        col.markdown(f'<div style="text-align:center;color:{D["text3"]};font-size:20px;padding:12px">·</div>',unsafe_allow_html=True)
         elif view=="Daily":
             jd=st.session_state.pop("cal_jump_daily",None)
             sd=st.date_input("",value=jd or prefill,label_visibility="collapsed")
@@ -1286,7 +1344,11 @@ elif page=="목표 & 습관":
         else: st.markdown(f'<div class="pa-empty"><div class="pa-empty-icon">🎯</div><p style="color:{D["text3"]}">아직 없음<br><small>아래에서 추가하세요</small></p></div>',unsafe_allow_html=True)
         st.markdown("---"); st.markdown(f'<div class="pa-section">추가</div>',unsafe_allow_html=True)
         hc1,hc2,hc3=st.columns([2,1,1])
-        hn=hc1.text_input("이름",key="hn"); hi=hc2.text_input("아이콘",value="✅",key="hi2")
+        hn=hc1.text_input("이름",key="hn")
+        hi_cur=st.session_state.get("hi2_val","✅")
+        selected_em=emoji_picker("habit_add",hi_cur)
+        if selected_em!=hi_cur: st.session_state["hi2_val"]=selected_em; st.rerun()
+        hi=selected_em
         ht=hc3.selectbox("타입",["check","numeric"],format_func=lambda x:{"check":"체크","numeric":"수치"}[x],key="ht")
         htr=1.0; hu=""
         if ht=="numeric":
@@ -1568,7 +1630,12 @@ elif page=="Settings":
 
     with tabs_s[3]:
         hc1,hc2,hc3=st.columns([2,1,1])
-        hn=hc1.text_input("이름"); hi=hc2.text_input("아이콘",value="✅",key="hi3"); ht2=hc3.selectbox("타입",["check","numeric"],format_func=lambda x:{"check":"체크","numeric":"수치"}[x],key="ht2")
+        hn=hc1.text_input("이름")
+        hi3_cur=st.session_state.get("hi3_val","✅")
+        sel_em3=emoji_picker("habit_settings",hi3_cur)
+        if sel_em3!=hi3_cur: st.session_state["hi3_val"]=sel_em3; st.rerun()
+        hi=sel_em3
+        ht2=hc3.selectbox("타입",["check","numeric"],format_func=lambda x:{"check":"체크","numeric":"수치"}[x],key="ht2")
         htr2=1.0; hu2=""
         if ht2=="numeric":
             hc4,hc5=st.columns(2); htr2=hc4.number_input("목표값",min_value=0.1,value=1.0,step=0.5,key="htr2"); hu2=hc5.text_input("단위",key="hu2")
