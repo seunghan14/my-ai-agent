@@ -1,4 +1,4 @@
-"""AI Engine V3.2 - Gemini model selection + auto fallback + Claude"""
+"""AI Engine V4.0 - Gemini + Claude + weekly_report custom format"""
 import streamlit as st
 import google.generativeai as genai
 import requests, json
@@ -6,10 +6,9 @@ import requests, json
 GEMINI_MODELS = {
     "gemini-2.5-flash": "⚡ Gemini 2.5 Flash (Fast, Free, Recommended)",
     "gemini-2.5-pro": "🧠 Gemini 2.5 Pro (Smart, ~50/day free)",
-    "gemini-3-flash-preview": "⚡ Gemini 3 Flash Preview (Latest Fast)",
-    "gemini-3.1-pro-preview": "🧠 Gemini 3.1 Pro Preview (Best, limited free)",
+    "gemini-2.0-flash": "⚡ Gemini 2.0 Flash",
+    "gemini-1.5-flash": "⚡ Gemini 1.5 Flash",
 }
-
 DEFAULT_MODEL = "gemini-2.5-flash"
 FALLBACK_MODEL = "gemini-2.5-flash"
 
@@ -26,7 +25,7 @@ def get_ai(prompt, engine="auto", task="general"):
 
 def _gemini(prompt):
     key = _get_key("gemini_api_key")
-    if not key: return "⚠️ Gemini API key required. Go to Settings."
+    if not key: return "⚠️ Gemini API key가 없습니다. Settings에서 입력하거나 Streamlit Secrets에 GEMINI_API_KEY를 추가하세요."
     model_name = _get_model()
     try:
         genai.configure(api_key=key)
@@ -60,7 +59,7 @@ def transcribe(audio):
     except Exception as e:
         if "429" in str(e):
             try: return genai.GenerativeModel(FALLBACK_MODEL).generate_content(
-                ["다음 음성을 한국어로 정확하게 전사해주세요. 화자 구분이 가능하면 구분해주세요.", {"mime_type": audio.type, "data": audio.read()}]).text
+                ["다음 음성을 한국어로 정확하게 전사해주세요.", {"mime_type": audio.type, "data": audio.read()}]).text
             except: pass
         return f"❌ {e}"
 
@@ -74,7 +73,7 @@ def ocr_image(image_data, mime_type):
     except Exception as e:
         if "429" in str(e):
             try: return genai.GenerativeModel(FALLBACK_MODEL).generate_content(
-                ["이 이미지의 모든 텍스트를 정확하게 읽어서 전사해주세요. 손글씨도 최대한 정확하게 읽어주세요. 마크다운 형식으로 정리해주세요.", {"mime_type": mime_type, "data": image_data}]).text
+                ["이 이미지의 모든 텍스트를 정확하게 읽어서 전사해주세요.", {"mime_type": mime_type, "data": image_data}]).text
             except: pass
         return f"❌ {e}"
 
@@ -84,12 +83,10 @@ def analyze_image_for_content(image_data, mime_type, content_type="instagram"):
     prompt = f"이 이미지를 분석하고, {content_type}용 매력적인 캡션/글을 한국어로 작성해주세요. 해시태그도 포함해주세요."
     try:
         genai.configure(api_key=key)
-        return genai.GenerativeModel(_get_model()).generate_content(
-            [prompt, {"mime_type": mime_type, "data": image_data}]).text
+        return genai.GenerativeModel(_get_model()).generate_content([prompt, {"mime_type": mime_type, "data": image_data}]).text
     except Exception as e:
         if "429" in str(e):
-            try: return genai.GenerativeModel(FALLBACK_MODEL).generate_content(
-                [prompt, {"mime_type": mime_type, "data": image_data}]).text
+            try: return genai.GenerativeModel(FALLBACK_MODEL).generate_content([prompt, {"mime_type": mime_type, "data": image_data}]).text
             except: pass
         return f"❌ {e}"
 
@@ -123,9 +120,7 @@ def suggest_related(content, notes):
     except: return []
 
 def analyze_finances(exp, inc, loans):
-    te = sum(e.get("amount",0) for e in exp)
-    ti = sum(i.get("amount",0) for i in inc)
-    tl = sum(l.get("remaining_amount",0) for l in loans)
+    te = sum(e.get("amount",0) for e in exp); ti = sum(i.get("amount",0) for i in inc); tl = sum(l.get("remaining_amount",0) for l in loans)
     cats = {}
     for e in exp: cats[e.get("category","기타")] = cats.get(e.get("category","기타"),0)+e.get("amount",0)
     return get_ai(f"재정분석:\n수입:{ti:,}원\n지출:{te:,}원\n대출잔액:{tl:,}원\n카테고리:{json.dumps(cats,ensure_ascii=False)}\n\n1.재정건강도/100 2.지출최적화3가지 3.대출전략 4.저축/투자추천 5.3개월계획", task="analysis")
@@ -133,13 +128,14 @@ def analyze_finances(exp, inc, loans):
 def web_summary(url):
     return get_ai(f"URL 핵심 3-5줄 요약 + 키워드 3-5개:\n{url}", task="summary")
 
-def weekly_report(notes, tasks, expenses):
+def weekly_report(notes, tasks, expenses, custom_format=None):
     done = [t for t in tasks if t.get("status")=="done"]
     todo = [t for t in tasks if t.get("status")=="todo"]
     meeting_notes = [n for n in notes if n.get("note_type")=="meeting"]
     notes_summary = "\n".join([f"- {n['title']}: {n.get('content','')[:100]}" for n in notes[:20]])
     tasks_summary = f"완료: {len(done)}개, 미완료: {len(todo)}개"
     meetings = "\n".join([f"- {n['title']}: {n.get('content','')[:200]}" for n in meeting_notes[:10]])
+    fmt = custom_format or """형식:\n## 📊 주간 업무 보고\n### 1. 핵심 성과\n### 2. 진행 중 업무\n### 3. 회의 요약\n### 4. 이슈/리스크\n### 5. 다음 주 계획\n### 6. 건의사항"""
     return get_ai(f"""이번 주 업무 데이터 기반 주간 보고서:
 
 ## 노트 ({len(notes)}개):
@@ -154,14 +150,7 @@ def weekly_report(notes, tasks, expenses):
 
 ## 지출: {sum(e.get('amount',0) for e in expenses):,}원
 
-형식:
-## 📊 주간 업무 보고
-### 1. 핵심 성과
-### 2. 진행 중 업무
-### 3. 회의 요약
-### 4. 이슈/리스크
-### 5. 다음 주 계획
-### 6. 건의사항""", task="summary")
+{fmt}""", task="summary")
 
 def folder_summary(notes, period_label):
     content = "\n".join([f"### {n['title']}\n{n.get('content','')[:300]}\n" for n in notes[:30]])
@@ -183,18 +172,14 @@ def file_to_markdown(file_obj):
     if name.endswith(('.txt','.md')):
         return file_obj.read().decode('utf-8')
     elif name.endswith('.csv'):
-        import pandas as pd
-        return pd.read_csv(file_obj).to_markdown()
+        import pandas as pd; return pd.read_csv(file_obj).to_markdown()
     elif name.endswith('.xlsx'):
-        import pandas as pd
-        return pd.read_excel(file_obj).to_markdown()
+        import pandas as pd; return pd.read_excel(file_obj).to_markdown()
     elif name.endswith('.docx'):
         try:
-            import docx
-            doc = docx.Document(file_obj)
+            import docx; doc = docx.Document(file_obj)
             return "\n\n".join([p.text for p in doc.paragraphs])
-        except:
-            return get_ai(f"파일 내용을 마크다운으로 변환: {file_obj.name}")
+        except: return get_ai(f"파일 내용을 마크다운으로 변환: {file_obj.name}")
     else:
         content = file_obj.read()
         try: return content.decode('utf-8')
