@@ -674,6 +674,9 @@ elif page=="📅 Calendar":
             if auth_url:
                 gcal_col1.info("Google Calendar를 연동하면 일정이 자동으로 동기화됩니다 (60초마다)")
                 st.session_state["pre_oauth_uid"] = uid
+                # 디버그: 실제 URL 표시
+                with st.expander("🔍 연결 URL 확인 (디버그)"):
+                    st.code(auth_url)
                 gcal_col2.markdown(f'<a href="{auth_url}" target="_self" style="display:inline-block;background:#2563EB;color:#fff;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;text-decoration:none">🔗 Google 연결</a>', unsafe_allow_html=True)
             else:
                 gcal_col1.caption("Settings > Secrets에 GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET 추가 시 Google Calendar 연동 가능")
