@@ -11,8 +11,12 @@ def get_google_creds():
 
 def get_redirect_uri():
     """Get the redirect URI for OAuth"""
-    # Streamlit Cloud URL from secrets or default
-    return st.secrets.get("REDIRECT_URI","https://localhost:8501")
+    uri = st.secrets.get("REDIRECT_URI","")
+    if not uri:
+        # fallback
+        uri = "https://sh-agent.streamlit.app"
+    # Always remove trailing slash to match Google Console
+    return uri.rstrip("/")
 
 def build_auth_url():
     """Build Google OAuth authorization URL"""
