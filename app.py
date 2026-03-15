@@ -6,13 +6,13 @@ import json, calendar, math, re
 st.set_page_config(page_title="Personal Assistant", page_icon="🚀", layout="wide", initial_sidebar_state="expanded")
 
 defs = {
-    "logged_in":False,"user":None,"current_page":"🏠 Dashboard",
+    "logged_in":False,"user":None,"current_page":"🏠 Dashboard","prev_page":"🏠 Dashboard",
     "gemini_api_key":"","claude_api_key":"","ai_engine":"auto",
     "editing_note":None,"editing_task":None,"theme":"light",
     "transcript":"","gemini_model":"gemini-2.5-flash",
     "show_related":False,"qc_preview":None,"qc_text":"",
-    "temp_note_save":None,
-    "ai_result":None,"ai_result_type":None,
+    "temp_note_save":None,"ai_result":None,"ai_result_type":None,
+    "time_reset_key":0,"cal_prefill_date":None,
     "dash_widgets":{"habits":True,"pinned":True,"recent":True,"tasks":True,"reminders":True}
 }
 for k,v in defs.items():
@@ -28,23 +28,49 @@ except: DB=False
 th=st.session_state.theme
 if th=="dark":
     st.markdown("""<style>
-.stApp{background:#121212 !important;color:#e8e8e8 !important}
-div[data-testid="stSidebar"]{background:#1e1e1e !important;border-right:1px solid #333}
-div[data-testid="stSidebar"] *{color:#e0e0e0}
-.stTextInput>div>div>input{background:#2a2a2a !important;color:#e8e8e8 !important;border-color:#444 !important}
-.stTextArea>div>div>textarea{background:#2a2a2a !important;color:#e8e8e8 !important;border-color:#444 !important}
-.stSelectbox>div>div{background:#2a2a2a !important;color:#e8e8e8 !important}
-.stNumberInput>div>div>input{background:#2a2a2a !important;color:#e8e8e8 !important}
-div[data-testid="stMetric"]{background:#1e1e1e;border:1px solid #333;border-radius:8px;padding:8px}
-div[data-testid="stExpander"]{border:1px solid #333;border-radius:8px}
-.stButton>button{border:1px solid #444;background:#2a2a2a;color:#e8e8e8}
-.stButton>button:hover{background:#3a3a3a !important}
-div[data-baseweb="tab-list"]{background:#1e1e1e}
-div[data-baseweb="tab"]{color:#aaa}
-hr{border-color:#333}
-.stMarkdown p{color:#e0e0e0}
-h1,h2,h3{color:#f0f0f0}
-div[data-testid="stProgress"]>div{background:#333}
+/* 전체 배경 */
+.stApp, .stApp > div, section.main, section.main > div {background:#121212 !important}
+/* 사이드바 */
+section[data-testid="stSidebar"] {background:#1a1a1a !important}
+section[data-testid="stSidebar"] > div {background:#1a1a1a !important}
+section[data-testid="stSidebar"] * {color:#c8c8c8 !important}
+/* 전체 텍스트 - 눈에 편한 연회색 */
+.stApp, .stApp p, .stApp span, .stApp label, .stApp div {color:#c8c8c8}
+h1,h2,h3,h4 {color:#e8e8e8 !important}
+/* 입력창 */
+.stTextInput input, .stTextArea textarea, .stNumberInput input {
+    background:#2a2a2a !important; color:#e0e0e0 !important; border-color:#444 !important}
+.stSelectbox > div > div {background:#2a2a2a !important; color:#e0e0e0 !important}
+/* 버튼 */
+.stButton > button {background:#2a2a2a !important; color:#e0e0e0 !important; border:1px solid #444 !important}
+.stButton > button:hover {background:#3a3a3a !important}
+/* 메트릭 */
+div[data-testid="stMetric"] {background:#1e1e1e; border:1px solid #333; border-radius:8px; padding:10px}
+div[data-testid="stMetricValue"] {color:#e8e8e8 !important}
+/* 익스팬더 */
+div[data-testid="stExpander"] {border:1px solid #333; border-radius:8px}
+div[data-testid="stExpander"] summary {color:#c8c8c8 !important}
+/* 탭 */
+div[data-baseweb="tab-list"] {background:#1a1a1a !important}
+button[data-baseweb="tab"] {color:#aaa !important}
+button[data-baseweb="tab"][aria-selected="true"] {color:#e8e8e8 !important}
+/* 구분선 */
+hr {border-color:#333 !important}
+/* 캡션 */
+.stMarkdown small, caption {color:#888 !important}
+/* 정보/경고 박스 */
+div[data-testid="stInfo"] {background:#1e3a5f !important; color:#c8d8f0 !important}
+div[data-testid="stWarning"] {background:#3a2a00 !important; color:#f0d080 !important}
+div[data-testid="stSuccess"] {background:#0a3a1a !important; color:#80d0a0 !important}
+div[data-testid="stError"] {background:#3a0a0a !important; color:#f08080 !important}
+/* 프로그레스 바 배경 */
+div[data-testid="stProgressBar"] > div {background:#333 !important}
+/* 체크박스 */
+label[data-testid="stCheckbox"] span {color:#c8c8c8 !important}
+/* 라디오 */
+div[data-testid="stRadio"] label {color:#c8c8c8 !important}
+/* 코드 블록 */
+code {background:#2a2a2a !important; color:#f0a080 !important}
 </style>""", unsafe_allow_html=True)
 
 st.markdown('<style>@media(max-width:768px){[data-testid="stHorizontalBlock"]>div{flex:100%!important;max-width:100%!important}}</style>',unsafe_allow_html=True)
@@ -70,15 +96,23 @@ def get_group(task):
     if p: return "project"
     return "general"
 
-# ===== 임시저장: 다른 메뉴로 이동 시 =====
-page=st.session_state.current_page
-if st.session_state.get("editing_note") and page!="📝 Notes":
-    note=st.session_state.editing_note
-    temp_content=st.session_state.get("nc",note.get("content",""))
-    temp_title=st.session_state.get("nt",note.get("title",""))
-    if temp_content or temp_title:
-        st.session_state["temp_note_save"]={"note":note,"content":temp_content,"title":temp_title}
-    st.session_state.editing_note=None
+def clear_nc():
+    if "nc" in st.session_state: del st.session_state["nc"]
+
+# ===== 임시저장: prev_page 기반 =====
+current_page_now = st.session_state.current_page
+prev_page_now = st.session_state.get("prev_page", current_page_now)
+
+if prev_page_now == "📝 Notes" and current_page_now != "📝 Notes":
+    if st.session_state.get("editing_note"):
+        note_tmp = st.session_state.editing_note
+        temp_c = st.session_state.get("nc", note_tmp.get("content","") if note_tmp else "")
+        temp_t = st.session_state.get("nt", note_tmp.get("title","") if note_tmp else "")
+        if temp_c or temp_t:
+            st.session_state["temp_note_save"] = {"note": note_tmp, "content": temp_c, "title": temp_t}
+        st.session_state.editing_note = None
+
+st.session_state.prev_page = current_page_now
 
 # ===== SIDEBAR =====
 with st.sidebar:
@@ -110,8 +144,6 @@ with st.sidebar:
         dname=user.get("display_name",user.get("email","").split("@")[0])
         st.markdown(f"## 🚀 {dname}'s Assistant")
         st.markdown("---")
-
-        # Quick Capture
         st.markdown("### ⚡ Quick Capture")
         qtext=st.text_input("",placeholder="무엇이든 입력하세요...",label_visibility="collapsed",key="qi")
         if qtext:
@@ -126,22 +158,20 @@ with st.sidebar:
             c=st.session_state.qc_preview; ct=c.get("type","note")
             icons={"task":"✅","expense":"💰","note":"📝","event":"📅"}
             st.info(f"{icons.get(ct,'📝')} **{ct.upper()}**: {c.get('title',qtext)[:40]}")
-            if ct=="expense" and c.get("amount"): st.caption(f"금액: {int(c['amount']):,}₩ / {c.get('category','기타')}")
             cc1,cc2=st.columns(2)
             if cc1.button("✅ 확인저장",use_container_width=True,key="qcs"):
                 if DB:
                     qt=st.session_state.get("qc_text","")
-                    if ct=="task": create_task(uid,c.get("title",qt)); st.success("✅ Task!")
-                    elif ct=="expense" and c.get("amount"): add_expense(uid,int(c["amount"]),c.get("category","기타"),qt); st.success("💰 지출!")
-                    else: create_note(uid,c.get("title",qt[:50]),qt); st.success("📝 Note!")
-                    st.session_state.qc_preview=None;st.session_state.qc_text="";st.rerun()
+                    if ct=="task": create_task(uid,c.get("title",qt)); st.success("✅!")
+                    elif ct=="expense" and c.get("amount"): add_expense(uid,int(c["amount"]),c.get("category","기타"),qt); st.success("💰!")
+                    else: create_note(uid,c.get("title",qt[:50]),qt); st.success("📝!")
+                    st.session_state.qc_preview=None; st.session_state.qc_text=""; st.rerun()
             if cc2.button("📝 노트로",use_container_width=True,key="qcn"):
                 if DB:
                     qt=st.session_state.get("qc_text","")
-                    create_note(uid,qt[:50],qt); st.success("📝 Note!")
-                    st.session_state.qc_preview=None;st.rerun()
+                    create_note(uid,qt[:50],qt); st.success("📝!")
+                    st.session_state.qc_preview=None; st.rerun()
 
-        # Search
         st.markdown("### 🔍 Search")
         sidebar_search=st.text_input("",placeholder="빠른 검색...",label_visibility="collapsed",key="sidebar_sq")
         if sidebar_search and DB:
@@ -164,14 +194,13 @@ with st.sidebar:
         st.markdown("---")
         tt=st.radio("",["☀️ Light","🌙 Dark"],horizontal=True,label_visibility="collapsed",index=0 if th=="light" else 1)
         nt="light" if "Light" in tt else "dark"
-        if nt!=st.session_state.theme: st.session_state.theme=nt;st.rerun()
+        if nt!=st.session_state.theme: st.session_state.theme=nt; st.rerun()
         if st.button("Logout",use_container_width=True):
             for k in list(st.session_state.keys()): del st.session_state[k]
             st.rerun()
 
 if not st.session_state.logged_in:
     st.markdown("# 🚀 Personal Assistant")
-    st.markdown("### Notes · Tasks · Calendar · Economy · AI — All in One")
     st.info("👈 Login from sidebar"); st.stop()
 
 user=st.session_state.user; uid=user["id"]; dname=user.get("display_name","User")
@@ -184,7 +213,7 @@ if page=="🏠 Dashboard":
     with col_cfg.expander("⚙️ 위젯"):
         dw=st.session_state.dash_widgets
         dw["reminders"]=st.checkbox("리마인더",value=dw.get("reminders",True))
-        dw["habits"]=st.checkbox("습관/목표",value=dw.get("habits",True))
+        dw["habits"]=st.checkbox("목표&습관",value=dw.get("habits",True))
         dw["pinned"]=st.checkbox("핀 위젯",value=dw.get("pinned",True))
         dw["recent"]=st.checkbox("최근 노트",value=dw.get("recent",True))
         dw["tasks"]=st.checkbox("오늘 할 일",value=dw.get("tasks",True))
@@ -216,14 +245,17 @@ if page=="🏠 Dashboard":
                     with cols[i%min(len(habits),4)]:
                         htype=h.get("habit_type","check")
                         if htype=="numeric":
-                            target=h.get("target_value",1); unit=h.get("unit","")
-                            cur_val=log_values.get(h["id"],0)
+                            target=float(h.get("target_value",1)); unit=h.get("unit","")
+                            cur_val=float(log_values.get(h["id"],0))
                             st.markdown(f"**{h.get('icon','🎯')} {h['name']}**")
-                            new_val=st.number_input(f"{unit}",min_value=0.0,max_value=float(target)*3,value=float(cur_val),step=0.5,key=f"hv_{h['id']}",label_visibility="collapsed")
+                            new_val=st.number_input(f"목표: {target}{unit}",min_value=0.0,max_value=target*3,value=cur_val,step=0.5,key=f"hv_{h['id']}")
                             pct=min(new_val/target,1.0) if target>0 else 0
-                            st.progress(pct,text=f"{new_val}/{target}{unit} ({pct*100:.0f}%)")
+                            st.progress(pct,text=f"{new_val}/{target}{unit}")
+                            # 완료 체크박스 (목표 달성 시 자동 체크)
+                            auto_done = pct >= 1.0
+                            done_check=st.checkbox("✅ 완료",value=h["id"] in done_ids or auto_done,key=f"hnc_{h['id']}")
                             if st.button("저장",key=f"hsv_{h['id']}",use_container_width=True):
-                                toggle_habit_value(h["id"],uid,new_val)
+                                toggle_habit_value(h["id"],uid,new_val if done_check else 0)
                         else:
                             checked=st.checkbox(f"{h.get('icon','✅')} {h['name']}",value=h["id"] in done_ids,key=f"h_{h['id']}")
                             if checked!=(h["id"] in done_ids): toggle_habit(h["id"],uid)
@@ -254,8 +286,7 @@ if page=="🏠 Dashboard":
         st.markdown("---")
         bc1,bc2=st.columns(2)
         if bc1.button("☀️ Morning Briefing",type="primary",use_container_width=True):
-            with st.spinner("..."):
-                st.markdown(get_ai(f"오늘:{datetime.now().strftime('%Y-%m-%d %A')}. 할일:{len(todo)}, 진행:{len(doing)}.\n간결한 아침 브리핑: 1)오늘 집중 2)팁 3)동기부여",st.session_state.ai_engine,"summary"))
+            with st.spinner("..."): st.markdown(get_ai(f"오늘:{datetime.now().strftime('%Y-%m-%d %A')}. 할일:{len(todo)}, 진행:{len(doing)}.\n간결한 아침 브리핑: 1)오늘 집중 2)팁 3)동기부여",st.session_state.ai_engine,"summary"))
         if bc2.button("🌙 Daily Review",use_container_width=True):
             with st.spinner("..."):
                 today_notes=[n for n in get_notes(uid) if n.get("updated_at","")[:10]==str(date.today())]
@@ -266,29 +297,36 @@ elif page=="📅 Calendar":
     st.markdown("## 📅 Calendar")
     view=st.radio("",["Monthly","Weekly","Daily","List"],horizontal=True,label_visibility="collapsed")
     custom_labels=get_color_labels(uid) if DB else {}
+
+    # 날짜 클릭으로 사전 입력된 날짜 처리
+    prefill_date = st.session_state.get("cal_prefill_date") or date.today()
     default_start=get_default_event_time()
     default_end=(datetime.combine(date.today(),default_start)+timedelta(hours=1)).time()
+    tkey=st.session_state.time_reset_key
 
-    with st.expander("➕ New Event"):
+    with st.expander("➕ New Event", expanded=bool(st.session_state.get("cal_prefill_date"))):
         et=st.text_input("Title",key="et",placeholder="일정 제목")
         dc1,dc2,dc3,dc4=st.columns([2,1,1,1])
-        ed=dc1.date_input("Date",value=date.today(),key="ed")
-        etime_s=dc2.time_input("Start",value=default_start,key="etm_s",step=timedelta(minutes=15))
-        etime_e=dc3.time_input("End",value=default_end,key="etm_e",step=timedelta(minutes=15))
+        ed=dc1.date_input("Date",value=prefill_date,key=f"ed_{tkey}")
+        etime_s=dc2.time_input("Start",value=default_start,key=f"etm_s_{tkey}",step=timedelta(minutes=15))
+        etime_e=dc3.time_input("End",value=default_end,key=f"etm_e_{tkey}",step=timedelta(minutes=15))
         if dc4.button("🕐 지금",help="현재 시각으로 리셋",key="reset_time"):
-            for k in ["etm_s","etm_e"]:
-                if k in st.session_state: del st.session_state[k]
+            st.session_state.time_reset_key+=1
+            if "cal_prefill_date" in st.session_state: del st.session_state["cal_prefill_date"]
             st.rerun()
         label_opts={k:get_label(k,custom_labels) for k in COLOR_PRESETS.keys()}
-        cl=st.selectbox("Label",list(label_opts.keys()),format_func=lambda x:f"{COLOR_DOTS.get(x,'🔵')} {label_opts[x]}")
+        cl=st.selectbox("Label",list(label_opts.keys()),format_func=lambda x:f"{COLOR_DOTS.get(x,'🔵')} {label_opts[x]}",key="ev_label")
         edesc=st.text_area("Memo",key="edesc",height=80,placeholder="메모 (선택)")
         if st.button("Add Event",type="primary",key="ae"):
             if not et: st.warning("⚠️ 제목을 입력해주세요.")
             elif DB:
                 try:
                     result=create_event(uid,et,datetime.combine(ed,etime_s),end=datetime.combine(ed,etime_e),desc=edesc,color_label=cl)
-                    if result: st.success("✅ 추가됨!"); st.rerun()
-                    else: st.error("❌ 추가 실패. DB 연결을 확인해주세요.")
+                    if result:
+                        st.success("✅ 추가됨!")
+                        st.session_state.cal_prefill_date=None
+                        st.rerun()
+                    else: st.error("❌ 추가 실패.")
                 except Exception as e: st.error(f"❌ 오류: {e}")
 
     if DB:
@@ -298,15 +336,19 @@ elif page=="📅 Calendar":
             evs=get_events(uid,datetime.combine(ms,datetime.min.time()),datetime.combine(me,datetime.max.time()))
             st.markdown(f"### {today.strftime('%Y년 %m월')}")
             hc=st.columns(7)
-            for i,d in enumerate(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]): hc[i].markdown(f"**{d}**")
+            for i,d_name in enumerate(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]): hc[i].markdown(f"**{d_name}**")
             for week in calendar.monthcalendar(today.year,today.month):
                 cols=st.columns(7)
                 for i,day in enumerate(week):
                     if day==0: cols[i].markdown("")
                     else:
                         des=[e for e in evs if e.get("start_time","")[:10]==f"{today.year}-{today.month:02d}-{day:02d}"]
-                        mk=f"👉**{day}**" if day==today.day else (f"**{day}**📌" if des else str(day))
-                        cols[i].markdown(mk)
+                        is_today=(day==today.day)
+                        mk=f"**👉{day}**" if is_today else (f"**{day}📌**" if des else str(day))
+                        if cols[i].button(mk,key=f"cal_day_{day}",use_container_width=True,
+                                          help=f"{today.year}-{today.month:02d}-{day:02d} 클릭 → 일정 추가"):
+                            st.session_state.cal_prefill_date=date(today.year,today.month,day)
+                            st.session_state.time_reset_key+=1; st.rerun()
                         for e in des:
                             c=COLOR_PRESETS.get(e.get("color_label","blue"),"#3b82f6")
                             cols[i].markdown(f'<div style="background:{c}22;border-left:2px solid {c};padding:2px 4px;margin:1px 0;border-radius:3px;font-size:10px">⏰{e.get("start_time","")[11:16]} {e["title"][:10]}</div>',unsafe_allow_html=True)
@@ -336,7 +378,7 @@ elif page=="📅 Calendar":
             st.markdown(f"### {sd.strftime('%Y-%m-%d (%A)')}")
             today_tasks=[t for t in get_tasks(uid) if t.get("due_date")==str(sd) and t["status"]!="done"]
             if today_tasks:
-                st.markdown("**📋 오늘 마감 태스크:**")
+                st.markdown("**📋 마감 태스크:**")
                 for t in today_tasks:
                     p="🔴" if t.get("priority")=="high" else "🟡" if t.get("priority")=="medium" else "🟢"
                     st.markdown(f"　{p} {t['title']}")
@@ -378,7 +420,8 @@ elif page=="✅ Tasks":
 
         if st.session_state.get("editing_task"):
             t=st.session_state.editing_task
-            st.markdown("---"); st.markdown("### ✏️ Task 수정")
+            st.markdown("---")
+            st.markdown(f'<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px;margin:8px 0">✏️ <b>수정 중: {t.get("title","")}</b></div>',unsafe_allow_html=True)
             ec1,ec2=st.columns(2)
             new_title=ec1.text_input("제목",value=t.get("title",""),key="et_title")
             new_proj=ec1.text_input("Project/구분",value=t.get("project","") or "",key="et_proj")
@@ -407,19 +450,22 @@ elif page=="✅ Tasks":
 
         if DB:
             at=get_tasks(uid)
-            # 칸반 보드
             status_config=[("backlog","📋 Backlog","#94a3b8"),("todo","📝 To Do","#3b82f6"),
                            ("doing","🔄 Doing","#f97316"),("done","✅ Done","#22c55e")]
             cols_k=st.columns(4)
             for col,(s,lb,col_color) in zip(cols_k,status_config):
                 with col:
                     tasks_in=[t for t in at if t["status"]==s]
-                    st.markdown(f'<div style="border-top:3px solid {col_color};padding-top:8px"><b>{lb}</b> <small style="color:#888">({len(tasks_in)})</small></div>',unsafe_allow_html=True)
+                    st.markdown(f'<div style="border-top:3px solid {col_color};padding-top:8px;margin-bottom:8px"><b>{lb}</b> <small style="color:#888">({len(tasks_in)})</small></div>',unsafe_allow_html=True)
                     for t in tasks_in:
                         bc="#ef4444" if t.get("priority")=="high" else "#eab308" if t.get("priority")=="medium" else "#22c55e"
                         p_icon="🔴" if t.get("priority")=="high" else "🟡" if t.get("priority")=="medium" else "🟢"
-                        grp=get_group(t); grp_badge={"general":"","personal":"👤","project":"📁"}.get(grp,"")
-                        st.markdown(f'<div style="background:#f8f9fa;border-radius:8px;padding:8px;margin:4px 0;border-left:3px solid {bc}">{p_icon} {grp_badge} <b>{t["title"]}</b>{"<br><small>📁 "+t["project"]+"</small>" if t.get("project") and t["project"]!="Personal" else ""}{"<br><small>📅 "+t["due_date"]+"</small>" if t.get("due_date") else ""}</div>',unsafe_allow_html=True)
+                        grp=get_group(t)
+                        proj_disp=""
+                        if grp=="personal": proj_disp='<br><small style="color:#8b5cf6">👤 Personal</small>'
+                        elif grp=="project": proj_disp=f'<br><small style="color:#3b82f6">📁 {t["project"]}</small>'
+                        due_disp=f'<br><small style="color:#888">📅 {t["due_date"]}</small>' if t.get("due_date") else ""
+                        st.markdown(f'<div style="background:#f8f9fa;border-radius:8px;padding:8px;margin:4px 0;border-left:3px solid {bc}">{p_icon} <b>{t["title"]}</b>{proj_disp}{due_disp}</div>',unsafe_allow_html=True)
                         b_cols=st.columns(4)
                         if b_cols[0].button("✏️",key=f"edit_{t['id']}",help="수정"): st.session_state.editing_task=t;st.rerun()
                         if s=="backlog":
@@ -433,42 +479,40 @@ elif page=="✅ Tasks":
                         elif s=="done":
                             if b_cols[1].button("↩️",key=f"bk_{t['id']}",help="Doing으로"): update_task(t["id"],status="doing");st.rerun()
                         if b_cols[3].button("🗑️",key=f"x_{t['id']}",help="삭제"): delete_task(t["id"]);st.rerun()
-                        st.markdown('<hr style="margin:4px 0;opacity:0.2">',unsafe_allow_html=True)
+                        st.markdown('<hr style="margin:4px 0;opacity:0.15">',unsafe_allow_html=True)
 
     with tab_project:
         if DB:
             at=get_tasks(uid)
             sort_opt=st.selectbox("정렬",["마감 임박순","이름순","Task 수 많은순"],key="proj_sort",label_visibility="collapsed")
 
-            # 그룹화
             general=[t for t in at if get_group(t)=="general"]
             personal=[t for t in at if get_group(t)=="personal"]
             proj_map={}
             for t in at:
                 if get_group(t)=="project":
-                    pn=t.get("project","기타")
-                    proj_map.setdefault(pn,[]).append(t)
+                    pn=t.get("project","기타"); proj_map.setdefault(pn,[]).append(t)
 
-            # 프로젝트 정렬
             def proj_sort_key(item):
-                pn,tasks=item
-                dues=[t["due_date"] for t in tasks if t.get("due_date")]
+                pn,tasks=item; dues=[t["due_date"] for t in tasks if t.get("due_date")]
                 if sort_opt=="마감 임박순": return min(dues) if dues else "9999"
                 if sort_opt=="이름순": return pn
                 return -len(tasks)
             sorted_projs=sorted(proj_map.items(),key=proj_sort_key)
 
-            def render_group(name,tasks,icon,color):
+            def render_group(name,tasks,icon,header_color):
                 if not tasks: return
-                done_c=len([t for t in tasks if t["status"]=="done"])
-                pct=int(done_c/len(tasks)*100) if tasks else 0
-                with st.expander(f"{icon} **{name}** — {pct}% ({done_c}/{len(tasks)})",expanded=True):
-                    st.progress(pct/100)
-                    for t in tasks:
-                        s_icon={"backlog":"📋","todo":"📝","doing":"🔄","done":"✅"}.get(t["status"],"📝")
-                        p_icon="🔴" if t.get("priority")=="high" else "🟡" if t.get("priority")=="medium" else "🟢"
-                        due_str=f" — {t['due_date']}" if t.get("due_date") else ""
-                        st.markdown(f"　{s_icon} {p_icon} {t['title']}{due_str}")
+                done_c=len([t for t in tasks if t["status"]=="done"]); pct=int(done_c/len(tasks)*100) if tasks else 0
+                # 그룹 헤더 - 시각적으로 명확하게
+                st.markdown(f'<div style="background:{header_color}18;border:1px solid {header_color}44;border-radius:10px;padding:10px 14px;margin:12px 0 4px 0"><span style="font-size:1.1rem;font-weight:700;color:{header_color}">{icon} {name}</span> &nbsp; <small style="color:#888">{done_c}/{len(tasks)} 완료 ({pct}%)</small></div>',unsafe_allow_html=True)
+                st.progress(pct/100)
+                status_icons={"backlog":"📋","todo":"📝","doing":"🔄","done":"✅"}
+                for t in tasks:
+                    s_icon=status_icons.get(t["status"],"📝")
+                    p_icon="🔴" if t.get("priority")=="high" else "🟡" if t.get("priority")=="medium" else "🟢"
+                    due_str=f" · 📅{t['due_date']}" if t.get("due_date") else ""
+                    # 태스크는 들여쓰기로 구분
+                    st.markdown(f'<div style="margin-left:16px;padding:4px 8px;border-left:2px solid {header_color}44;margin-bottom:2px"><small>{s_icon} {p_icon} {t["title"]}{due_str}</small></div>',unsafe_allow_html=True)
 
             render_group("General",general,"📌","#3b82f6")
             render_group("Personal",personal,"👤","#8b5cf6")
@@ -484,22 +528,23 @@ elif page=="📝 Notes":
     # 임시저장 복원 배너
     if st.session_state.get("temp_note_save"):
         temp=st.session_state.temp_note_save
-        st.warning(f"📝 임시저장된 노트가 있습니다: **'{temp['title']}'**")
+        st.warning(f"📝 임시저장된 노트가 있습니다: **'{temp.get('title','(제목 없음)')}'**")
         rb1,rb2=st.columns(2)
-        if rb1.button("✅ 이어서 편집",use_container_width=True):
+        if rb1.button("✅ 이어서 편집",use_container_width=True,key="restore_note"):
             st.session_state.editing_note=temp["note"]
             st.session_state["_tmpl"]=temp["content"]
+            clear_nc()
             st.session_state["temp_note_save"]=None; st.rerun()
-        if rb2.button("❌ 버리기",use_container_width=True):
+        if rb2.button("❌ 버리기",use_container_width=True,key="discard_note"):
             st.session_state["temp_note_save"]=None; st.rerun()
 
     nc1,nc2,nc3,nc4=st.columns([2,1,1,1])
     sq=nc1.text_input("🔍",placeholder="Search...",label_visibility="collapsed")
     sort_notes=nc2.selectbox("",["최신순","업데이트순","이름순"],label_visibility="collapsed",key="note_sort")
     if nc3.button("📅 Daily",use_container_width=True):
-        if DB: st.session_state.editing_note=get_daily_note(uid);st.session_state.show_related=False;st.rerun()
+        if DB: st.session_state.editing_note=get_daily_note(uid);st.session_state.show_related=False;clear_nc();st.rerun()
     if nc4.button("➕ New",type="primary",use_container_width=True):
-        if DB: st.session_state.editing_note=create_note(uid,"New Note","");st.session_state.show_related=False;st.rerun()
+        if DB: st.session_state.editing_note=create_note(uid,"New Note","");st.session_state.show_related=False;clear_nc();st.rerun()
 
     if DB:
         with st.expander("📁 Folders"):
@@ -531,18 +576,19 @@ elif page=="📝 Notes":
                  "daily":f"# {date.today().strftime('%Y-%m-%d %A')}\n\n## Notes\n\n\n## To Do\n- [ ] \n\n## Ideas\n\n"}
         if DB:
             all_tmps=get_templates(uid)
-            note_tmps=[t for t in all_tmps if t.get("note_type") not in ["report_template","ai_prompt"]]
+            note_tmps=[t for t in all_tmps if t.get("note_type") not in ["report_template","ai_prompt","pomo_prompt"]]
             if note_tmps:
                 st.markdown("**📄 Templates:**")
                 tc=st.columns(min(len(note_tmps)+1,5))
                 for i,t in enumerate(note_tmps):
-                    if tc[i].button(f"{t.get('icon','📄')} {t['name']}",key=f"tmp_{t['id']}"): st.session_state["_tmpl"]=t["content"];st.rerun()
+                    if tc[i].button(f"{t.get('icon','📄')} {t['name']}",key=f"tmp_{t['id']}"):
+                        st.session_state["_tmpl"]=t["content"]; clear_nc(); st.rerun()
+
         default_content=st.session_state.pop("_tmpl",None)
         if default_content is None:
             default_content=builtin.get(nt_sel,"") if not note.get("content") else note.get("content","")
         content=st.text_area("",value=default_content,height=380,label_visibility="collapsed",key="nc")
 
-        # 파일 첨부
         uploaded=st.file_uploader("📎 파일 첨부",type=["txt","md","docx","xlsx","csv","png","jpg","jpeg","pdf"],key="nf_upload")
         if uploaded:
             if uploaded.type.startswith("image"):
@@ -550,31 +596,36 @@ elif page=="📝 Notes":
                 if st.button("🔍 OCR",key="ocr_btn"):
                     with st.spinner("Reading..."):
                         ocr_text=ocr_image(uploaded.read(),uploaded.type); st.markdown(ocr_text)
-                        st.session_state["_tmpl"]=content+"\n\n---\n## Extracted\n"+ocr_text; st.rerun()
+                        st.session_state["_tmpl"]=content+"\n\n---\n## Extracted\n"+ocr_text; clear_nc(); st.rerun()
             else:
                 if st.button("📥 Import",key="import_btn"):
                     with st.spinner("Converting..."):
-                        imported=file_to_markdown(uploaded); st.session_state["_tmpl"]=content+"\n\n---\n## Imported\n"+imported; st.rerun()
+                        imported=file_to_markdown(uploaded); st.session_state["_tmpl"]=content+"\n\n---\n## Imported\n"+imported; clear_nc(); st.rerun()
 
         tag_input=st.text_input("🏷️ Tags",placeholder="#work, #project-a",key="ntags")
 
-        # AI Tools with custom prompt selection
+        # AI Tools - 버튼 먼저, 프롬프트 선택 아래
         st.markdown("**🤖 AI Tools:**")
+        ac=st.columns(4)
+        btn_sum=ac[0].button("🤖 Summary",use_container_width=True,help="📌 입력 내용만 기반으로 요약 (외부 정보 없음)")
+        btn_rel=ac[1].button("🔗 Related",use_container_width=True,help="📌 연결 노트 패널 열기/닫기\n[[노트제목]] 자동 링크")
+        btn_exp=ac[2].button("✨ Expand",use_container_width=True,help="📌 입력 내용만 기반으로 확장")
+        btn_md=ac[3].button("📄→MD",use_container_width=True,help="📌 내용을 Markdown 형식으로 변환")
 
-        # AI 프롬프트 선택
+        # 프롬프트 선택 - 버튼 아래 한 줄
         ai_prompts_db=[]
         if DB:
             all_tmps_ai=get_templates(uid)
             ai_prompts_db=[t for t in all_tmps_ai if t.get("note_type")=="ai_prompt"]
-
         sum_prompts=["기본 요약 (3~5줄)"]+[t["name"] for t in ai_prompts_db if t.get("icon","")=="📝"]
         exp_prompts=["기본 확장"]+[t["name"] for t in ai_prompts_db if t.get("icon","")=="✨"]
 
-        ac=st.columns(4)
-        sel_sum=ac[0].selectbox("",sum_prompts,key="sel_sum",label_visibility="collapsed")
-        sel_exp=ac[2].selectbox("",exp_prompts,key="sel_exp",label_visibility="collapsed")
+        pc1,pc2,_,_=st.columns(4)
+        sel_sum=pc1.selectbox("Summary 프롬프트",sum_prompts,key="sel_sum",label_visibility="visible")
+        sel_exp=pc2.selectbox("Expand 프롬프트",exp_prompts,key="sel_exp",label_visibility="visible")
 
-        if ac[0].button("🤖 Summary",use_container_width=True,help="📌 외부 정보 없이 입력 내용만 기반으로 요약"):
+        # 버튼 액션 처리
+        if btn_sum:
             if content:
                 custom_p=None
                 if sel_sum!="기본 요약 (3~5줄)":
@@ -583,11 +634,9 @@ elif page=="📝 Notes":
                 with st.spinner("..."):
                     result=summarize_note(content,custom_p)
                     st.session_state.ai_result=result; st.session_state.ai_result_type="summary"; st.rerun()
-
-        if ac[1].button("🔗 Related",use_container_width=True,help="📌 연결 노트 보기/추가\n[[노트제목]] 입력 시 자동 링크"):
+        if btn_rel:
             st.session_state.show_related=not st.session_state.get("show_related",False); st.rerun()
-
-        if ac[2].button("✨ Expand",use_container_width=True,help="📌 입력 내용만 기반으로 확장 (외부 정보 추가 안 함)"):
+        if btn_exp:
             if content:
                 custom_p=None
                 if sel_exp!="기본 확장":
@@ -596,31 +645,29 @@ elif page=="📝 Notes":
                 with st.spinner("..."):
                     result=expand_note(content,custom_p)
                     st.session_state.ai_result=result; st.session_state.ai_result_type="expand"; st.rerun()
-
-        if ac[3].button("📄→MD",use_container_width=True,help="📌 내용을 Markdown 형식으로 변환"):
+        if btn_md:
             if content:
                 with st.spinner("..."):
-                    result=get_ai(f"다음 내용을 깔끔한 마크다운으로 정리해주세요. 외부 정보 추가 없이 원본 내용만 정리:\n\n{content}",st.session_state.ai_engine,"content")
+                    result=get_ai(f"다음 내용을 깔끔한 마크다운으로 정리. 외부 정보 추가 없이 원본만 정리:\n\n{content}",st.session_state.ai_engine,"content")
                     st.session_state.ai_result=result; st.session_state.ai_result_type="md"; st.rerun()
 
-        # AI 결과 표시 + 반영 버튼
+        # AI 결과 + 반영 버튼
         if st.session_state.get("ai_result"):
             res=st.session_state.ai_result; rtype=st.session_state.ai_result_type
             type_labels={"summary":"📋 요약 결과","expand":"✨ 확장 결과","md":"📄 MD 변환 결과"}
             st.markdown(f"---\n#### {type_labels.get(rtype,'AI 결과')}")
             st.markdown(res)
-            st.markdown("**결과를 노트에 반영하시겠습니까?**")
+            st.markdown("**노트에 반영:**")
             rb1,rb2,rb3,rb4=st.columns(4)
             if rb1.button("📌 맨 위에 추가",use_container_width=True,key="ai_top"):
-                separator="\n\n---\n"
-                if rtype=="summary": new_c=f"## 📋 요약\n{res}{separator}{content}"
-                else: new_c=f"{res}{separator}{content}"
-                st.session_state["_tmpl"]=new_c; st.session_state.ai_result=None; st.rerun()
+                sep="\n\n---\n\n"
+                new_c=f"## 📋 요약\n{res}{sep}{content}" if rtype=="summary" else f"{res}{sep}{content}"
+                st.session_state["_tmpl"]=new_c; st.session_state.ai_result=None; clear_nc(); st.rerun()
             if rb2.button("📎 맨 아래 추가",use_container_width=True,key="ai_bot"):
-                new_c=f"{content}\n\n---\n{res}"
-                st.session_state["_tmpl"]=new_c; st.session_state.ai_result=None; st.rerun()
+                new_c=f"{content}\n\n---\n\n{res}"
+                st.session_state["_tmpl"]=new_c; st.session_state.ai_result=None; clear_nc(); st.rerun()
             if rb3.button("🔄 원본 대체",use_container_width=True,key="ai_rep"):
-                st.session_state["_tmpl"]=res; st.session_state.ai_result=None; st.rerun()
+                st.session_state["_tmpl"]=res; st.session_state.ai_result=None; clear_nc(); st.rerun()
             if rb4.button("✖️ 무시",use_container_width=True,key="ai_ign"):
                 st.session_state.ai_result=None; st.rerun()
 
@@ -642,7 +689,7 @@ elif page=="📝 Notes":
                 if link_search:
                     matching=[n for n in all_notes if link_search.lower() in n["title"].lower() and n["id"]!=note.get("id")]
                     for mn in matching[:5]:
-                        if st.button(f"🔗 {mn['title']}",key=f"link_{mn['id']}"): link_notes(note["id"],mn["id"]);st.success(f"연결!");st.rerun()
+                        if st.button(f"🔗 {mn['title']}",key=f"link_{mn['id']}"): link_notes(note["id"],mn["id"]);st.success("연결!");st.rerun()
                 if st.button("🤖 AI 추천",key="ai_related"):
                     if content and all_notes:
                         with st.spinner("..."):
@@ -667,18 +714,18 @@ elif page=="📝 Notes":
                     matches=[n for n in all_notes if n["title"].lower()==fl.lower() and n["id"]!=note["id"]]
                     if matches: link_notes(note["id"],matches[0]["id"])
                 st.success("✅ Saved!")
-        if sc[1].button("Close",use_container_width=True): st.session_state.editing_note=None;st.session_state.show_related=False;st.session_state.ai_result=None;st.rerun()
+        if sc[1].button("Close",use_container_width=True):
+            st.session_state.editing_note=None;st.session_state.show_related=False
+            st.session_state.ai_result=None;clear_nc();st.rerun()
         if sc[2].button("🗑️ Del",use_container_width=True):
             if DB: delete_note(note["id"])
-            st.session_state.editing_note=None;st.rerun()
+            st.session_state.editing_note=None;clear_nc();st.rerun()
         if sc[3].button("📥 Export",use_container_width=True):
             st.download_button("⬇️ .md",f"# {new_title}\n\n{content}",file_name=f"{new_title}.md",mime="text/markdown")
     else:
         if DB:
-            fm={"최신순":"created_at","업데이트순":"updated_at","이름순":"title"}
             fid=st.session_state.get("folder_filter")
             notes=get_notes(uid,search=sq or None,folder_id=fid)
-            # 정렬
             if sort_notes=="이름순": notes=sorted(notes,key=lambda x:x.get("title",""))
             elif sort_notes=="업데이트순": notes=sorted(notes,key=lambda x:x.get("updated_at",""),reverse=True)
             else: notes=sorted(notes,key=lambda x:x.get("created_at",""),reverse=True)
@@ -687,9 +734,8 @@ elif page=="📝 Notes":
                 fav="⭐" if n.get("is_favorite") else ""
                 cn,ca=st.columns([5,1])
                 cn.markdown(f"{fav}{icon} **{n['title']}** · _{n.get('updated_at','')[:10]}_")
-                if ca.button("Open",key=f"o_{n['id']}"): st.session_state.editing_note=n;st.session_state.show_related=False;st.session_state.ai_result=None;st.rerun()
+                if ca.button("Open",key=f"o_{n['id']}"): st.session_state.editing_note=n;st.session_state.show_related=False;st.session_state.ai_result=None;clear_nc();st.rerun()
             if not notes: st.info("노트가 없습니다. ➕ New를 눌러 추가하세요.")
-
         st.markdown("---")
         if st.checkbox("🕸️ Note Graph"):
             if DB:
@@ -735,18 +781,11 @@ elif page=="🎙️ Transcription":
             if st.button("💾 Process & Save",type="primary"):
                 with st.spinner("Processing..."):
                     result=""
-                    if "Meeting" in save_type:
-                        result=summarize_meeting(st.session_state.transcript)
-                        if DB: create_note(uid,f"📋 Meeting {date.today()}",result,"meeting");st.success("Saved!")
-                    elif "Summary" in save_type:
-                        result=get_ai(f"5줄 핵심 요약:\n\n{st.session_state.transcript}",st.session_state.ai_engine,"summary")
-                        if DB: create_note(uid,f"Summary {date.today()}",result,"note");st.success("Saved!")
-                    elif "Action" in save_type:
-                        result=get_ai(f"액션아이템 체크박스로:\n\n{st.session_state.transcript}",st.session_state.ai_engine,"analysis")
-                        if DB: create_note(uid,f"Actions {date.today()}",result,"note");st.success("Saved!")
-                    else:
-                        result=st.session_state.transcript
-                        if DB: create_note(uid,f"Transcript {date.today()}",result,"note");st.success("Saved!")
+                    if "Meeting" in save_type: result=summarize_meeting(st.session_state.transcript)
+                    elif "Summary" in save_type: result=get_ai(f"5줄 핵심 요약:\n\n{st.session_state.transcript}",st.session_state.ai_engine,"summary")
+                    elif "Action" in save_type: result=get_ai(f"액션아이템 체크박스로:\n\n{st.session_state.transcript}",st.session_state.ai_engine,"analysis")
+                    else: result=st.session_state.transcript
+                    if DB: create_note(uid,f"{'📋 Meeting' if 'Meeting' in save_type else 'Summary' if 'Summary' in save_type else 'Actions' if 'Action' in save_type else 'Transcript'} {date.today()}",result,"meeting" if "Meeting" in save_type else "note");st.success("Saved!")
                     if result and "Raw" not in save_type: st.markdown(result)
     with tab2:
         tc1,tc2=st.columns(2)
@@ -768,8 +807,7 @@ elif page=="✨ AI Content":
         if topic:
             with st.spinner("Generating..."):
                 result=""
-                if img:
-                    result=analyze_image_for_content(img.read(),img.type,ct);st.markdown(result)
+                if img: result=analyze_image_for_content(img.read(),img.type,ct);st.markdown(result)
                 else:
                     em={"Auto":"auto","Gemini":"gemini","Claude":"claude"}
                     prompts={"Blog":f"주제:{topic}\n키워드:{kw}\n\n블로그: 제목3개, SEO메타, 본문1500-2000자, 해시태그10개",
@@ -778,8 +816,7 @@ elif page=="✨ AI Content":
                     if ct=="Full Package":
                         for t_name in ["Blog","Instagram","Twitter Thread"]:
                             st.markdown(f"### {t_name}"); part=get_ai(prompts[t_name],em[eng],"content"); st.markdown(part); result+=f"\n\n## {t_name}\n"+part; st.markdown("---")
-                    else:
-                        result=get_ai(prompts[ct],em[eng],"content"); st.markdown(result)
+                    else: result=get_ai(prompts[ct],em[eng],"content"); st.markdown(result)
                 if result:
                     sc1,sc2=st.columns(2)
                     if sc1.button("📝 Save to Notes",key="sc_note"):
@@ -799,9 +836,8 @@ elif page=="💹 Economy":
             if exps:
                 cats={}
                 for e in exps: cats[e.get("category","기타")]=cats.get(e.get("category","기타"),0)+e.get("amount",0)
-                st.markdown("### Category Breakdown")
                 for cat,amt in sorted(cats.items(),key=lambda x:-x[1]):
-                    st.progress(min(amt/te,1) if te>0 else 0,text=f"{cat}: {amt:,}₩ ({amt/te*100:.0f}%)" if te>0 else f"{cat}: {amt:,}₩")
+                    st.progress(min(amt/te,1) if te>0 else 0,text=f"{cat}: {amt:,}₩")
     with tabs[1]:
         sub=st.radio("",["Expenses","Income","Loans","Upload"],horizontal=True,label_visibility="collapsed")
         if sub=="Expenses":
@@ -811,7 +847,7 @@ elif page=="💹 Economy":
             if st.button("Record",type="primary",key="re"):
                 if ea>0 and DB: add_expense(uid,ea,ecat,edsc,edt);st.success("✅");st.rerun()
             if DB:
-                for e in get_expenses(uid,datetime.now().strftime("%Y-%m"))[:20]: st.markdown(f"- {e.get('expense_date','')} | {e.get('category','')} | {e.get('amount',0):,}₩ | {e.get('description','')}")
+                for e in get_expenses(uid,datetime.now().strftime("%Y-%m"))[:20]: st.markdown(f"- {e.get('expense_date','')} | {e.get('category','')} | {e.get('amount',0):,}₩")
         elif sub=="Income":
             ic1,ic2=st.columns(2); ia=ic1.number_input("₩",min_value=0,step=100000,key="ia"); isrc=ic2.text_input("Source",key="isrc")
             if st.button("Record",type="primary",key="ri"):
@@ -826,7 +862,7 @@ elif page=="💹 Economy":
             if DB:
                 for l in get_loans(uid):
                     pct=(1-l.get("remaining_amount",0)/max(l.get("total_amount",1),1))*100
-                    st.progress(pct/100,text=f"{l['name']}: {l.get('remaining_amount',0):,}₩ ({pct:.0f}% paid)")
+                    st.progress(pct/100,text=f"{l['name']}: {l.get('remaining_amount',0):,}₩")
         elif sub=="Upload":
             uploaded=st.file_uploader("Excel/CSV/Text",type=["csv","xlsx","txt"],key="eu"); text_in=st.text_area("Or paste data",height=100,key="eti")
             if st.button("🤖 AI Import",type="primary"):
@@ -892,7 +928,6 @@ elif page=="🔗 Web Clipper":
 # ===== POMODORO =====
 elif page=="🍅 Pomodoro":
     st.markdown("## 🍅 Pomodoro Timer")
-
     pc1,pc2,pc3=st.columns(3)
     focus_min=pc1.number_input("집중 (분)",min_value=1,max_value=90,value=25,step=5,key="focus_min")
     break_min=pc2.number_input("휴식 (분)",min_value=1,max_value=30,value=5,step=1,key="break_min")
@@ -933,19 +968,16 @@ function startBreak(){{clearInterval(iv);run=false;brk=true;left=B;total=B;docum
 function reset(){{clearInterval(iv);run=false;brk=false;left=F;total=F;document.getElementById('sb').textContent='▶️ 시작';document.getElementById('ts').textContent='집중할 준비가 되셨나요? 🍅';ui()}}
 </script>"""
     components.html(timer_html,height=300)
-
     st.markdown("---")
     col_r1,col_r2,col_r3=st.columns(3)
     interruptions=col_r2.number_input("방해받은 횟수",min_value=0,max_value=20,value=0,key="pomo_int")
     is_complete=col_r3.checkbox("완주 여부",value=True,key="pomo_complete")
-
     if col_r1.button("✅ 세션 기록",type="primary",use_container_width=True):
         if DB:
             status="complete" if is_complete else "interrupted"
             log_pomo(uid,focus_min,tn_work,status=status,interruptions=interruptions)
             st.success(f"🍅 기록됨! ({'완주' if is_complete else '중단'})")
             if is_complete: st.balloons()
-
     if DB:
         logs=get_pomo_logs(uid,7)
         if logs:
@@ -955,31 +987,25 @@ function reset(){{clearInterval(iv);run=false;brk=false;left=F;total=F;document.
             col_s1.metric("완료 세션",f"{len(complete_logs)} 🍅")
             col_s2.metric("총 집중",f"{sum(l.get('duration_minutes',25) for l in complete_logs)}분")
             col_s3.metric("완주율",f"{int(len(complete_logs)/len(logs)*100) if logs else 0}%")
-
             with st.expander("📋 최근 기록"):
                 for l in logs[:10]:
-                    status_icon="✅" if l.get("status","complete")=="complete" else "⚠️"
+                    s_icon="✅" if l.get("status","complete")=="complete" else "⚠️"
                     intr=l.get("interruptions",0)
-                    st.markdown(f"{status_icon} {l.get('task_name','(미입력)')} — {l.get('completed_at','')[:10]} ({l.get('duration_minutes',25)}분{', 방해'+str(intr)+'회' if intr else ''})")
-
+                    st.markdown(f"{s_icon} {l.get('task_name','(미입력)')} — {l.get('completed_at','')[:10]} ({l.get('duration_minutes',25)}분{', 방해'+str(intr)+'회' if intr else ''})")
             st.markdown("### 🤖 AI Insight")
-
-            # AI 프롬프트 선택
             pomo_prompts_db=[]
             if DB:
                 all_tmps_p=get_templates(uid)
                 pomo_prompts_db=[t for t in all_tmps_p if t.get("note_type")=="pomo_prompt"]
             pomo_prompt_opts=["기본 뽀모도로 분석"]+[t["name"] for t in pomo_prompts_db]
-            sel_pomo_prompt=st.selectbox("분석 프롬프트 선택",pomo_prompt_opts,key="sel_pomo_p")
-
+            sel_pomo_prompt=st.selectbox("분석 프롬프트",pomo_prompt_opts,key="sel_pomo_p")
             if st.button("🤖 Insight 분석",type="primary",use_container_width=True):
                 custom_pp=None
                 if sel_pomo_prompt!="기본 뽀모도로 분석":
                     m=[t for t in pomo_prompts_db if t["name"]==sel_pomo_prompt]
                     if m: custom_pp=m[0]["content"]
                 with st.spinner("분석 중..."):
-                    insight=pomodoro_insight(logs,custom_pp)
-                    st.markdown(insight)
+                    insight=pomodoro_insight(logs,custom_pp); st.markdown(insight)
                     if st.button("📝 노트에 저장",key="pomo_note"):
                         if DB: create_note(uid,f"🍅 Pomodoro Insight {date.today()}",insight,"note");st.success("Saved!")
 
@@ -987,7 +1013,7 @@ function reset(){{clearInterval(iv);run=false;brk=false;left=F;total=F;document.
 elif page=="📊 Weekly Report":
     st.markdown("## 📊 Weekly Report")
     col_d1,col_d2=st.columns(2)
-    use_preset=col_d1.selectbox("기간 선택",["이번 주","지난 7일","지난 14일","이번 달","사용자 지정"])
+    use_preset=col_d1.selectbox("기간",["이번 주","지난 7일","지난 14일","이번 달","사용자 지정"])
     if use_preset=="이번 주": start=date.today()-timedelta(days=date.today().weekday());end=date.today()
     elif use_preset=="지난 7일": start=date.today()-timedelta(7);end=date.today()
     elif use_preset=="지난 14일": start=date.today()-timedelta(14);end=date.today()
@@ -996,23 +1022,21 @@ elif page=="📊 Weekly Report":
         start=col_d1.date_input("시작일",value=date.today()-timedelta(7))
         end=col_d2.date_input("종료일",value=date.today())
     col_d2.info(f"**기간:** {start} ~ {end}")
-    st.markdown("---"); st.markdown("### 📝 Report Template")
     DEFAULT_FORMAT="형식:\n## 📊 주간 업무 보고\n### 1. 핵심 성과\n### 2. 진행 중 업무\n### 3. 회의 요약\n### 4. 이슈/리스크\n### 5. 다음 주 계획\n### 6. 건의사항"
     if DB:
         all_tmps=get_templates(uid); report_tmps=[t for t in all_tmps if t.get("note_type")=="report_template"]
         tmpl_names=["📋 기본 템플릿"]+[f"📊 {t['name']}" for t in report_tmps]
-        sel_tmpl=st.selectbox("템플릿 선택",tmpl_names)
+        sel_tmpl=st.selectbox("템플릿",tmpl_names)
         if sel_tmpl=="📋 기본 템플릿": prompt_val=DEFAULT_FORMAT
         else:
             t_name=sel_tmpl.replace("📊 ",""); tmpl_obj=next((t for t in report_tmps if t["name"]==t_name),None)
             prompt_val=tmpl_obj["content"] if tmpl_obj else DEFAULT_FORMAT
         custom_prompt=st.text_area("리포트 형식",value=prompt_val,height=200)
         with st.expander("💾 새 템플릿으로 저장"):
-            new_t_name=st.text_input("템플릿 이름",placeholder="예: 영업팀 주간보고")
+            new_t_name=st.text_input("이름",placeholder="예: 영업팀 주간보고")
             if st.button("저장",key="save_rpt"):
-                if new_t_name: create_template(uid,new_t_name,custom_prompt,note_type="report_template",icon="📊");st.success(f"저장됨!");st.rerun()
+                if new_t_name: create_template(uid,new_t_name,custom_prompt,note_type="report_template",icon="📊");st.success("저장됨!");st.rerun()
     else: custom_prompt=DEFAULT_FORMAT
-    st.markdown("---")
     if st.button("📊 보고서 생성",type="primary",use_container_width=True):
         if DB:
             with st.spinner("Generating..."):
@@ -1021,7 +1045,7 @@ elif page=="📊 Weekly Report":
                 report=weekly_report(notes,tasks,exps,custom_format=custom_prompt)
                 st.markdown(report)
                 sc1,sc2=st.columns(2)
-                if sc1.button("📝 노트에 저장",key="sr"): create_note(uid,f"📊 Report {start}~{end}",report,"note");st.success("Saved!")
+                if sc1.button("📝 저장",key="sr"): create_note(uid,f"📊 Report {start}~{end}",report,"note");st.success("Saved!")
                 sc2.download_button("📥 Download",report,f"report_{start}_{end}.md","text/markdown")
 
 # ===== SEARCH =====
@@ -1041,49 +1065,40 @@ elif page=="🔍 Search":
 elif page=="⚙️ Settings":
     st.markdown("## ⚙️ Settings")
     tabs_s=st.tabs(["👤 Profile","🔑 API Keys","🤖 AI Engine","🎯 목표&습관","📅 Labels","📄 Templates","🤖 AI 프롬프트","📊 Stats"])
-
     with tabs_s[0]:
         st.markdown("### 👤 Profile")
         nn=st.text_input("Display Name",value=dname,key="sn")
         if st.button("Update Name"):
             if DB: update_profile(uid,display_name=nn);st.session_state.user["display_name"]=nn;st.success("Updated!");st.rerun()
-        st.markdown("---")
-        st.markdown("### 🔑 비밀번호 변경")
+        st.markdown("---"); st.markdown("### 🔑 비밀번호 변경")
         cur_pw=st.text_input("현재 비밀번호",type="password",key="cur_pw")
         new_pw=st.text_input("새 비밀번호",type="password",key="new_pw")
-        new_pw2=st.text_input("새 비밀번호 확인",type="password",key="new_pw2")
+        new_pw2=st.text_input("확인",type="password",key="new_pw2")
         if st.button("비밀번호 변경",key="chg_pw"):
-            if new_pw!=new_pw2: st.error("새 비밀번호가 일치하지 않습니다.")
-            elif not cur_pw: st.error("현재 비밀번호를 입력하세요.")
+            if new_pw!=new_pw2: st.error("새 비밀번호 불일치")
+            elif not cur_pw: st.error("현재 비밀번호 입력")
             elif DB:
                 import hashlib
                 u,err=login_user(user.get("email",""),cur_pw)
-                if u:
-                    update_profile(uid,password_hash=hashlib.sha256(new_pw.encode()).hexdigest())
-                    st.success("✅ 비밀번호 변경됨!")
-                else: st.error("현재 비밀번호가 틀렸습니다.")
-
+                if u: update_profile(uid,password_hash=hashlib.sha256(new_pw.encode()).hexdigest());st.success("✅ 변경됨!")
+                else: st.error("현재 비밀번호 틀림")
     with tabs_s[1]:
         st.markdown("### 🔑 API Keys")
         gk=st.text_input("Gemini API Key",value=st.session_state.gemini_api_key,type="password",key="sgk")
         ck=st.text_input("Claude API Key (선택)",value=st.session_state.claude_api_key,type="password",key="sck")
         if st.button("Save Keys",type="primary"):
-            st.session_state.gemini_api_key=gk;st.session_state.claude_api_key=ck;st.success("저장됨 (현재 세션)")
+            st.session_state.gemini_api_key=gk;st.session_state.claude_api_key=ck;st.success("저장됨")
         st.info("💡 영구 저장: Streamlit Secrets에 GEMINI_API_KEY 추가")
-
     with tabs_s[2]:
-        st.markdown("### 🤖 AI Engine")
-        st.session_state.ai_engine=st.radio("",["auto","gemini","claude"],format_func=lambda x:{"auto":"🔄 Auto","gemini":"⚡ Gemini","claude":"🧠 Claude"}[x],horizontal=True,label_visibility="collapsed")
-        st.markdown("### 🧠 Gemini Model")
+        st.session_state.ai_engine=st.radio("Engine",["auto","gemini","claude"],format_func=lambda x:{"auto":"🔄 Auto","gemini":"⚡ Gemini","claude":"🧠 Claude"}[x],horizontal=True)
         from ai_engine import GEMINI_MODELS,DEFAULT_MODEL
         current_model=st.session_state.get("gemini_model",DEFAULT_MODEL); model_keys=list(GEMINI_MODELS.keys())
-        selected=st.selectbox("",model_keys,format_func=lambda x:GEMINI_MODELS[x],index=model_keys.index(current_model) if current_model in model_keys else 0,label_visibility="collapsed")
+        selected=st.selectbox("Gemini Model",model_keys,format_func=lambda x:GEMINI_MODELS[x],index=model_keys.index(current_model) if current_model in model_keys else 0)
         st.session_state.gemini_model=selected
         st.caption("⚡ Flash = 빠르고 무료 | 🧠 Pro = 더 스마트 (일 50회)")
-
     with tabs_s[3]:
         st.markdown("### 🎯 목표 & 습관")
-        st.caption("체크형: 했냐/안했냐 | 수치형: 목표값 달성률")
+        st.caption("✅ 체크형: 했냐/안했냐 | 📊 수치형: 목표값 달성률 + 완료 체크")
         hc1,hc2,hc3=st.columns([2,1,1])
         hn=hc1.text_input("이름"); hi=hc2.text_input("아이콘",value="✅",key="hi")
         htype=hc3.selectbox("타입",["check","numeric"],format_func=lambda x:{"check":"✅ 체크형","numeric":"📊 수치형"}[x],key="htype")
@@ -1093,64 +1108,54 @@ elif page=="⚙️ Settings":
             htarget=hc4.number_input("목표값",min_value=0.1,value=1.0,step=0.5,key="htarget")
             hunit=hc5.text_input("단위",placeholder="km, 잔, 분...",key="hunit")
         if st.button("추가",key="ah"):
-            if hn and DB:
-                create_habit_v2(uid,hn,hi,htype,htarget,hunit)
-                st.rerun()
+            if hn and DB: create_habit_v2(uid,hn,hi,htype,htarget,hunit);st.rerun()
         if DB:
             for h in get_habits(uid):
                 c1,c2,c3=st.columns([4,2,1])
-                htype_label="📊" if h.get("habit_type")=="numeric" else "✅"
                 c1.markdown(f"{h.get('icon','✅')} {h['name']}")
-                if h.get("habit_type")=="numeric":
-                    c2.caption(f"목표: {h.get('target_value',1)}{h.get('unit','')}")
+                if h.get("habit_type")=="numeric": c2.caption(f"목표: {h.get('target_value',1)}{h.get('unit','')}")
                 if c3.button("🗑️",key=f"dh_{h['id']}"): delete_habit(h["id"]);st.rerun()
-
     with tabs_s[4]:
         st.markdown("### 📅 Calendar Labels")
-        st.caption("색상별 이름을 설정하면 캘린더에서 라벨로 표시됩니다.")
         if DB:
             custom_labels=get_color_labels(uid)
             for color_key,hex_val in COLOR_PRESETS.items():
                 current_label=custom_labels.get(color_key,{}).get("label",color_key.capitalize())
                 ca,cb,cc=st.columns([1,3,1])
                 ca.markdown(f'<div style="width:22px;height:22px;background:{hex_val};border-radius:50%;margin-top:8px"></div>',unsafe_allow_html=True)
-                new_label=cb.text_input(f"label_{color_key}",value=current_label,key=f"lbl_{color_key}",label_visibility="collapsed",placeholder=f"{color_key} 이름")
-                if cc.button("저장",key=f"slbl_{color_key}"): set_color_label(uid,color_key,new_label,hex_val);st.success(f"저장됨");st.rerun()
-
+                new_label=cb.text_input(f"label_{color_key}",value=current_label,key=f"lbl_{color_key}",label_visibility="collapsed")
+                if cc.button("저장",key=f"slbl_{color_key}"): set_color_label(uid,color_key,new_label,hex_val);st.success("저장됨");st.rerun()
     with tabs_s[5]:
         st.markdown("### 📄 Note Templates")
-        tn_t=st.text_input("이름",key="tn"); ti_t=st.text_input("아이콘",value="📄",key="ti"); tc_t=st.text_area("내용 (Markdown)",height=150,key="tc")
-        if st.button("Save Template",key="st_btn"):
+        tn_t=st.text_input("이름",key="tn"); ti_t=st.text_input("아이콘",value="📄",key="ti"); tc_t=st.text_area("내용",height=150,key="tc")
+        if st.button("Save",key="st_btn"):
             if tn_t and tc_t and DB: create_template(uid,tn_t,tc_t,icon=ti_t);st.success("Saved!");st.rerun()
         if DB:
             for t in get_templates(uid):
                 if t.get("note_type") not in ["report_template","ai_prompt","pomo_prompt"]:
                     c1,c2=st.columns([5,1]); c1.markdown(f"{t.get('icon','📄')} {t['name']}")
                     if c2.button("🗑️",key=f"dt_{t['id']}"): delete_template(t["id"]);st.rerun()
-
     with tabs_s[6]:
         st.markdown("### 🤖 AI 커스텀 프롬프트")
-        st.caption("노트 Summary/Expand 및 Pomodoro 분석에 사용할 커스텀 프롬프트를 추가하세요.")
+        st.caption("노트 Summary/Expand 및 Pomodoro 분석 시 선택 가능한 커스텀 프롬프트입니다.")
         pt_cat=st.selectbox("카테고리",["📝 Summary용","✨ Expand용","🍅 Pomodoro 분석용"],key="pt_cat")
-        pt_name=st.text_input("프롬프트 이름",key="pt_name"); pt_content=st.text_area("프롬프트 내용",height=120,key="pt_content",placeholder="예: 업무 보고서 형식으로 3줄 요약해줘")
+        pt_name=st.text_input("이름",key="pt_name"); pt_content=st.text_area("프롬프트 내용",height=120,key="pt_content")
         cat_map={"📝 Summary용":("ai_prompt","📝"),"✨ Expand용":("ai_prompt","✨"),"🍅 Pomodoro 분석용":("pomo_prompt","🍅")}
         if st.button("저장",key="save_ai_p"):
             if pt_name and pt_content and DB:
                 nt_type,icon=cat_map[pt_cat]
-                create_template(uid,pt_name,pt_content,note_type=nt_type,icon=icon); st.success("저장됨!");st.rerun()
+                create_template(uid,pt_name,pt_content,note_type=nt_type,icon=icon);st.success("저장됨!");st.rerun()
         if DB:
-            st.markdown("**저장된 AI 프롬프트:**")
             for t in get_templates(uid):
                 if t.get("note_type") in ["ai_prompt","pomo_prompt"]:
                     c1,c2=st.columns([5,1]); c1.markdown(f"{t.get('icon','🤖')} {t['name']}")
                     if c2.button("🗑️",key=f"dap_{t['id']}"): delete_template(t["id"]);st.rerun()
-
     with tabs_s[7]:
         st.markdown("### 📊 Stats")
         if DB:
             c1,c2,c3=st.columns(3)
-            c1.metric("Notes",len(get_notes(uid)));c2.metric("Tasks",len(get_tasks(uid)));c3.metric("DB","✅ 연결됨")
-            st.info("💡 여러 계정: 다른 이메일로 회원가입하면 완전히 독립된 데이터로 사용 가능합니다.")
+            c1.metric("Notes",len(get_notes(uid)));c2.metric("Tasks",len(get_tasks(uid)));c3.metric("DB","✅")
+            st.info("💡 다른 이메일로 가입하면 완전히 독립된 계정으로 사용 가능합니다.")
 
 st.markdown("---")
-st.caption(f"🚀 {dname}'s Personal Assistant v4.1")
+st.caption(f"🚀 {dname}'s Personal Assistant v4.2")
