@@ -371,6 +371,18 @@ div[data-testid="stNumberInput"] > div {{ background:{D['input_bg']} !important;
 .pa-quote-ref {{ font-size:12px; color:{D['text3']}; margin-top:6px; }}
 </style>""", unsafe_allow_html=True)
 
+# ===== 모바일 FAB 네비게이션 (사이드바 접힘 대응) =====
+_fab_html=f"""
+<style>
+#pa-fab{{position:fixed;bottom:24px;left:16px;z-index:99999;display:none}}
+#pa-fab button{{width:48px;height:48px;border-radius:50%;background:{D['accent']};color:#fff;border:none;font-size:20px;cursor:pointer;box-shadow:0 4px 16px rgba(79,70,229,0.35);transition:transform .15s}}
+#pa-fab button:hover{{transform:scale(1.1)}}
+@media(max-width:768px){{#pa-fab{{display:block!important}}}}
+</style>
+<div id="pa-fab"><button onclick="(function(){{var b=window.parent.document.querySelector('[data-testid=stSidebarCollapseButton]');if(b)b.click()}})()" title="메뉴">☰</button></div>
+"""
+components.html(_fab_html, height=0)
+
 # ===== CONSTANTS =====
 COLOR_PRESETS={"blue":"#3B82F6","red":"#EF4444","green":"#22C55E","purple":"#8B5CF6",
                "orange":"#F97316","pink":"#EC4899","teal":"#14B8A6","yellow":"#EAB308",
@@ -646,7 +658,10 @@ with st.sidebar:
         st.markdown(f'<div class="pa-section">메뉴</div>',unsafe_allow_html=True)
         new_page=st.radio("",PAGES,label_visibility="collapsed",
                           index=PAGES.index(st.session_state.current_page) if st.session_state.current_page in PAGES else 0)
-        if new_page!=st.session_state.current_page: st.session_state.current_page=new_page; st.rerun()
+    if new_page!=st.session_state.current_page:
+        st.session_state.current_page=new_page
+        if new_page=="Calendar": st.session_state.gcal_synced_at=None
+        st.rerun()
 
         st.markdown(f'<hr style="border-color:{D["border"]};margin:12px 0">',unsafe_allow_html=True)
         # 테마 토글 - horizontal 강제
@@ -825,34 +840,52 @@ elif page=="Calendar":
         if gc2.button("연결 해제"): clear_google_tokens(uid); st.rerun()
         if GCAL:
             last=st.session_state.get("gcal_synced_at")
-            if not last or (now_kst()-last).seconds>60:
+            # FIX: total_seconds() 사용 + 강제 동기화 버튼
+            elapsed=(now_kst()-last).total_seconds() if last else 999
+            sync_c1,sync_c2=st.columns([4,1])
+            if elapsed<60: sync_c1.caption(f"최근 동기화: {int(elapsed)}초 전")
+            force_sync=sync_c2.button("🔄 재동기화",key="force_gcal_sync")
+            if force_sync or elapsed>=60:
                 with st.spinner("Google Calendar 동기화 중..."):
                     try:
                         gs=datetime.combine(today_kst().replace(day=1),datetime.min.time())
                         ge=gs+timedelta(days=60)
-                        gevs=gcal_get_events(uid,gs,ge)
-                        existing=get_events(uid,gs,ge)
-                        ex_ids={e.get("gcal_id") for e in existing if e.get("gcal_id")}
-                        added=0
-                        for ge2 in gevs:
-                            p=parse_gcal_event(ge2)
-                            if p["gcal_id"] not in ex_ids:
-                                try:
-                                    s=p["start_time"]; e2=p["end_time"]
-                                    if "T" in s:
-                                        sdt=datetime.fromisoformat(s.replace("Z","+00:00"))
-                                        if sdt.tzinfo: sdt=sdt.astimezone(KST).replace(tzinfo=None)
-                                    else: sdt=datetime.combine(date.fromisoformat(s),datetime.min.time())
-                                    if e2 and "T" in e2:
-                                        edt=datetime.fromisoformat(e2.replace("Z","+00:00"))
-                                        if edt.tzinfo: edt=edt.astimezone(KST).replace(tzinfo=None)
-                                    elif e2: edt=datetime.combine(date.fromisoformat(e2),datetime.min.time())
-                                    else: edt=sdt+timedelta(hours=1)
-                                    create_event(uid,p["title"],sdt,edt,p.get("description",""),"indigo",p["gcal_id"],"google")
-                                    added+=1
-                                except: pass
-                        st.session_state.gcal_synced_at=now_kst()
-                        if added>0: st.info(f"Google Calendar에서 {added}개 일정 가져왔습니다")
+                        result=gcal_get_events(uid,gs,ge)
+                        # FIX: gcal_get_events 반환값 처리 (tuple or list)
+                        if isinstance(result, tuple):
+                            gevs, gcal_err = result
+                        else:
+                            gevs, gcal_err = result, None
+                        if gcal_err:
+                            st.warning(f"Google Calendar 오류: {gcal_err}")
+                        else:
+                            existing=get_events(uid,gs,ge)
+                            ex_ids={e.get("gcal_id") for e in existing if e.get("gcal_id")}
+                            added=0
+                            for ge2 in gevs:
+                                p=parse_gcal_event(ge2)
+                                # FIX: gcal_id None/빈문자열 체크
+                                if not p.get("gcal_id"): continue
+                                if p["gcal_id"] not in ex_ids:
+                                    try:
+                                        s=p["start_time"]; e2=p["end_time"]
+                                        if "T" in s:
+                                            sdt=datetime.fromisoformat(s.replace("Z","+00:00"))
+                                            if sdt.tzinfo: sdt=sdt.astimezone(KST).replace(tzinfo=None)
+                                        else: sdt=datetime.combine(date.fromisoformat(s),datetime.min.time())
+                                        if e2 and "T" in e2:
+                                            edt=datetime.fromisoformat(e2.replace("Z","+00:00"))
+                                            if edt.tzinfo: edt=edt.astimezone(KST).replace(tzinfo=None)
+                                        elif e2: edt=datetime.combine(date.fromisoformat(e2),datetime.min.time())
+                                        else: edt=sdt+timedelta(hours=1)
+                                        r=create_event(uid,p["title"],sdt,edt,p.get("description",""),"indigo",p["gcal_id"],"google")
+                                        if r: added+=1
+                                    except: pass
+                            # FIX: 처리 완료 후 timestamp 저장
+                            st.session_state.gcal_synced_at=now_kst()
+                            if added>0: st.success(f"✅ {added}개 일정 가져왔습니다"); st.rerun()
+                            elif gevs: st.info(f"Google Calendar {len(gevs)}개 확인 (모두 동기화됨)")
+                            else: st.info("해당 기간 Google Calendar 일정 없음")
                     except Exception as ex: st.warning(f"동기화 실패: {ex}")
     else:
         if GCAL:
