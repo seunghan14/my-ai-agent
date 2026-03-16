@@ -19,7 +19,7 @@ def get_default_event_time():
 defs = {
     "logged_in":False,"user":None,"current_page":"Dashboard","prev_page":"Dashboard",
     "gemini_api_key":"","claude_api_key":"","ai_engine":"auto",
-    "editing_note":None,"editing_task":None,"theme":"dark",
+    "editing_note":None,"editing_task":None,"theme":"light",
     "transcript":"","gemini_model":"gemini-2.5-flash",
     "show_related":False,"qc_preview":None,"qc_text":"",
     "temp_note_save":None,"temp_task_save":None,
@@ -30,6 +30,9 @@ defs = {
     "cal_year":today_kst().year,"cal_month":today_kst().month,
     "dash_widget_order":["quote","reminders","habits","pinned","recent","tasks"],
     "dash_widgets":{"habits":True,"pinned":True,"recent":True,"tasks":True,"reminders":True,"quote":True},
+    "chat_messages":[],
+    "chat_model":"gemini",
+    "share_view_uid":None,
 }
 for k,v in defs.items():
     if k not in st.session_state: st.session_state[k]=v
@@ -50,7 +53,16 @@ ls_html = """<script>
 (function(){
   var uid=localStorage.getItem('pa_uid');
   if(uid){var p=new URLSearchParams(window.location.search);if(!p.get('uid')){p.set('uid',uid);window.history.replaceState({},'',window.location.pathname+'?'+p.toString());window.location.reload();}}
-  window.addEventListener('message',function(e){if(e.data&&e.data.type==='store_uid'){localStorage.setItem('pa_uid',e.data.uid);}else if(e.data&&e.data.type==='clear_uid'){localStorage.removeItem('pa_uid');}});
+  // Restore theme from localStorage
+  var theme=localStorage.getItem('pa_theme');
+  if(theme){window.parent.postMessage({type:'restore_theme',theme:theme},'*');}
+  window.addEventListener('message',function(e){
+    if(e.data&&e.data.type==='store_uid'){localStorage.setItem('pa_uid',e.data.uid);}
+    else if(e.data&&e.data.type==='clear_uid'){localStorage.removeItem('pa_uid');}
+    else if(e.data&&e.data.type==='restore_theme'){
+      // Note: can't set session_state from JS, handled via query params
+    }
+  });
 })();
 </script>"""
 components.html(ls_html, height=0)
@@ -63,6 +75,10 @@ if not st.session_state.logged_in and DB:
         if restored:
             st.session_state.logged_in=True
             st.session_state.user=restored
+            # 테마 복원 (DB 저장값 우선)
+            saved_theme = restored.get("theme","light")
+            if saved_theme in ["light","dark"]:
+                st.session_state.theme = saved_theme
 
 # ===== Google OAuth =====
 oauth_code = st.query_params.get("code","")
@@ -367,6 +383,7 @@ PRIO_LABELS={"high":"High","medium":"Medium","low":"Low"}
 
 PAGES = [
     "Dashboard","Calendar","Tasks","Notes","목표 & 습관",
+    "AI Chat","Statistics",
     "Transcription","AI Content","Economy","Email",
     "Web Clipper","Pomodoro","Weekly Report","Search","Settings"
 ]
@@ -452,6 +469,44 @@ def get_daily_quote(uid, quote_type="motivational"):
         return result
     except: return ""
 
+# ===== SHARING =====
+def get_shared_users(uid):
+    """Get users this account has shared with"""
+    q = _q("shared_access") if DB else None
+    if not q: return []
+    try: return q.select("*").eq("owner_id", uid).execute().data or []
+    except: return []
+
+def add_shared_access(owner_id, shared_email, permission="view"):
+    """Share access with another user"""
+    if not DB: return False
+    try:
+        sb = get_sb()
+        # Find user by email
+        r = sb.table("profiles").select("id,display_name").eq("email", shared_email).execute()
+        if not r.data: return None, "해당 이메일 사용자를 찾을 수 없습니다"
+        shared_uid = r.data[0]["id"]
+        shared_name = r.data[0].get("display_name", shared_email)
+        sb.table("shared_access").upsert({
+            "owner_id": owner_id,
+            "shared_with_id": shared_uid,
+            "shared_email": shared_email,
+            "permission": permission
+        }).execute()
+        return shared_name, None
+    except Exception as e: return None, str(e)
+
+def remove_shared_access(owner_id, shared_with_id):
+    if not DB: return False
+    try: get_sb().table("shared_access").delete().eq("owner_id", owner_id).eq("shared_with_id", shared_with_id).execute(); return True
+    except: return False
+
+def get_my_accesses(uid):
+    """Get accounts this user has access to"""
+    if not DB: return []
+    try: return get_sb().table("shared_access").select("owner_id,permission,profiles(display_name,email)").eq("shared_with_id", uid).execute().data or []
+    except: return []
+
 # ===== EMOJI PICKER =====
 EMOJI_CATEGORIES = {
     "자주 쓰는": ["✅","📝","💡","📅","🎯","🔥","⭐","❤️","👍","🙏","💪","🎉","📌","🔔","⚡","🌟","✨","🚀","💰","📊"],
@@ -497,7 +552,7 @@ with st.sidebar:
                     if u:
                         st.session_state.logged_in=True; st.session_state.user=u
                         st.query_params["uid"]=str(u["id"])
-                        components.html(f"<script>window.parent.postMessage({{type:'store_uid',uid:'{u['id']}'}}, '*');</script>",height=0)
+                        components.html(f"<script>window.parent.postMessage({{type:'store_uid',uid:'{u['id']}'}}, '*');localStorage.setItem('pa_theme','{u.get('theme','light')}');</script>",height=0)
                         st.rerun()
                     else: st.error(err)
                 else:
@@ -594,9 +649,21 @@ with st.sidebar:
         if new_page!=st.session_state.current_page: st.session_state.current_page=new_page; st.rerun()
 
         st.markdown(f'<hr style="border-color:{D["border"]};margin:12px 0">',unsafe_allow_html=True)
-        tt=st.radio("",["Light","Dark"],horizontal=True,label_visibility="collapsed",index=0 if th=="light" else 1)
-        if ("Light" in tt and th=="dark") or ("Dark" in tt and th=="light"):
-            st.session_state.theme="light" if "Light" in tt else "dark"; st.rerun()
+        # 테마 토글 - horizontal 강제
+        st.markdown(f'<style>.theme-toggle div[data-testid="stRadio"] > div{{flex-direction:row !important;gap:8px !important;}}</style>',unsafe_allow_html=True)
+        st.markdown('<div class="theme-toggle">',unsafe_allow_html=True)
+        tt=st.radio("",["☀️ Light","🌙 Dark"],horizontal=True,label_visibility="collapsed",index=0 if th=="light" else 1,key="theme_radio")
+        st.markdown('</div>',unsafe_allow_html=True)
+        new_theme="light" if "Light" in tt else "dark"
+        if new_theme!=th:
+            st.session_state.theme=new_theme
+            # DB에 저장
+            if DB and st.session_state.logged_in:
+                update_profile(st.session_state.user["id"],theme=new_theme)
+                st.session_state.user["theme"]=new_theme
+            # localStorage에도 저장
+            components.html(f"<script>localStorage.setItem('pa_theme','{new_theme}');</script>",height=0)
+            st.rerun()
         if st.button("로그아웃",use_container_width=True):
             st.query_params.clear()
             components.html("<script>window.parent.postMessage({type:'clear_uid'},'*');</script>",height=0)
@@ -1583,9 +1650,98 @@ elif page=="Search":
                         st.session_state.current_page="Calendar"; st.rerun()
         else: st.markdown(f'<div class="pa-empty"><div class="pa-empty-icon">🔍</div><p style="color:{D["text3"]}">결과 없음</p></div>',unsafe_allow_html=True)
 
+# ===== AI CHAT =====
+elif page=="AI Chat":
+    section("AI Chat", "AI와 대화하고 노트로 저장하세요")
+    col_m1, col_m2, _ = st.columns([1,1,3])
+    chat_model_sel = col_m1.radio("", ["Gemini","Claude"], horizontal=True, label_visibility="collapsed", key="chat_model_sel")
+    if col_m2.button("초기화"): st.session_state.chat_messages = []; st.rerun()
+    msgs = st.session_state.get("chat_messages", [])
+    for msg in msgs:
+        is_user = msg["role"]=="user"
+        align = "flex-end" if is_user else "flex-start"
+        bg = D["accent"] if is_user else D["surface"]
+        tc = "#FFFFFF" if is_user else D["text"]
+        br = "18px 18px 4px 18px" if is_user else "18px 18px 18px 4px"
+        st.markdown(f'<div style="display:flex;justify-content:{align};margin:6px 0"><div style="max-width:75%;background:{bg};color:{tc};padding:10px 14px;border-radius:{br};font-size:14px;line-height:1.5">{msg["content"]}</div></div>', unsafe_allow_html=True)
+    st.markdown("---")
+    ci1,ci2=st.columns([5,1])
+    user_input=ci1.text_input("",placeholder="메시지 입력...",label_visibility="collapsed",key="chat_input")
+    if ci2.button("전송",type="primary",use_container_width=True) and user_input:
+        msgs.append({"role":"user","content":user_input})
+        with st.spinner("..."):
+            ctx="\n".join([f"{'User' if m['role']=='user' else 'AI'}: {m['content']}" for m in msgs[-6:]])
+            engine2="gemini" if chat_model_sel=="Gemini" else "claude"
+            try: response=get_ai(f"대화:\n{ctx}\n\n위 마지막에 답해줘.",engine2,"chat")
+            except: response=get_ai(f"대화:\n{ctx}\n\n답해줘.","gemini","chat")
+            msgs.append({"role":"assistant","content":response})
+        st.session_state.chat_messages=msgs; st.rerun()
+    if msgs:
+        st.markdown("---")
+        sc1,sc2=st.columns([3,1])
+        chat_title=sc1.text_input("",placeholder="노트 제목...",label_visibility="collapsed",key="chat_save_title")
+        if sc2.button("노트 저장",type="primary",use_container_width=True):
+            if chat_title and DB:
+                content2="\n\n".join([f"**{'나' if m['role']=='user' else 'AI'}**: {m['content']}" for m in msgs])
+                create_note(uid,chat_title,content2,"note"); st.success("저장됨!")
+            elif not chat_title: st.warning("제목 입력")
+
+# ===== STATISTICS =====
+elif page=="Statistics":
+    section("통계","노트, 태스크, 습관 활동 분석")
+    if DB:
+        today=today_kst()
+        dr1,_=st.columns([2,3])
+        stat_range=dr1.selectbox("",["최근 7일","최근 30일","이번 달","올해"],label_visibility="collapsed",key="stat_range")
+        if stat_range=="최근 7일": s_start=today-timedelta(7)
+        elif stat_range=="최근 30일": s_start=today-timedelta(30)
+        elif stat_range=="이번 달": s_start=today.replace(day=1)
+        else: s_start=today.replace(month=1,day=1)
+        all_notes=get_notes(uid); all_tasks=get_tasks(uid); all_habits=get_habits(uid)
+        pomo_logs=get_pomo_logs(uid,(today-s_start).days+1)
+        period_notes=[n for n in all_notes if n.get("updated_at","")[:10]>=str(s_start)]
+        done_tasks=[t for t in all_tasks if t["status"]=="done"]
+        complete_pomo=[l for l in pomo_logs if l.get("status","complete")=="complete"]
+        ws_d=today-timedelta(days=today.weekday())
+        wl=get_habit_logs(uid,ws_d,today)
+        habit_rate=int(len([l for l in wl if l.get("completed")])/max(len(all_habits)*(today.weekday()+1),1)*100) if all_habits else 0
+        m1,m2,m3,m4=st.columns(4)
+        m1.metric("작성 노트",len(period_notes)); m2.metric("완료 태스크",len(done_tasks))
+        m3.metric("뽀모도로",f"{len(complete_pomo)}회"); m4.metric("습관 달성률",f"{habit_rate}%")
+        st.markdown("---")
+        st.markdown(f'<div class="pa-section">노트 활동 (최근 14일)</div>', unsafe_allow_html=True)
+        daily_counts={str(today-timedelta(i)):len([n for n in all_notes if n.get("updated_at","")[:10]==str(today-timedelta(i))]) for i in range(14)}
+        max_c=max(daily_counts.values()) if any(daily_counts.values()) else 1
+        chart_parts=['<div style="display:flex;align-items:flex-end;gap:3px;height:80px">']
+        for i in range(13,-1,-1):
+            d=str(today-timedelta(i)); cnt=daily_counts.get(d,0)
+            h2=int((cnt/max(max_c,1))*70) if cnt>0 else 3
+            col_c=D["accent"] if i==0 else D["accent"]+"55"
+            chart_parts.append(f'<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:1px"><div style="font-size:9px;color:{D["text3"]}">{cnt if cnt>0 else ""}</div><div style="width:100%;height:{h2}px;background:{col_c};border-radius:2px 2px 0 0;min-height:3px"></div><div style="font-size:9px;color:{D["text3"]}">{(today-timedelta(i)).strftime("%d")}</div></div>')
+        chart_parts.append('</div>')
+        st.markdown("".join(chart_parts), unsafe_allow_html=True)
+        st.markdown("---")
+        cl1,cl2=st.columns(2)
+        with cl1:
+            st.markdown(f'<div class="pa-section">태스크 현황</div>', unsafe_allow_html=True)
+            sc_map={"backlog":("#94A3B8","Backlog"),"todo":(D["accent"],"To Do"),"doing":(D["warning"],"진행 중"),"done":(D["success"],"완료")}
+            total_t=max(len(all_tasks),1)
+            for s2,(sc2,slbl) in sc_map.items():
+                cnt2=len([t for t in all_tasks if t["status"]==s2]); pct2=int(cnt2/total_t*100)
+                st.markdown(f'<div style="margin:5px 0"><div style="display:flex;justify-content:space-between;font-size:12px;color:{D["text2"]};margin-bottom:3px"><span>{slbl}</span><span>{cnt2}개 ({pct2}%)</span></div><div style="height:6px;background:{D["surface2"]};border-radius:99px;overflow:hidden"><div style="height:100%;width:{pct2}%;background:{sc2};border-radius:99px"></div></div></div>', unsafe_allow_html=True)
+        with cl2:
+            st.markdown(f'<div class="pa-section">습관 달성 현황</div>', unsafe_allow_html=True)
+            if all_habits:
+                for h in all_habits[:5]:
+                    hl2=[l for l in wl if l["habit_id"]==h["id"] and l.get("completed")]
+                    dd2=len(hl2); dt3=today.weekday()+1; ph2=int(dd2/max(dt3,1)*100)
+                    hc2=D["success"] if ph2>=80 else D["warning"] if ph2>=50 else D["danger"]
+                    st.markdown(f'<div style="margin:5px 0"><div style="display:flex;justify-content:space-between;font-size:12px;color:{D["text2"]};margin-bottom:3px"><span>{h.get("icon","✅")} {h["name"]}</span><span style="color:{hc2}">{dd2}/{dt3}일</span></div><div style="height:6px;background:{D["surface2"]};border-radius:99px;overflow:hidden"><div style="height:100%;width:{ph2}%;background:{hc2};border-radius:99px"></div></div></div>', unsafe_allow_html=True)
+            else: st.caption("습관 없음")
+
 elif page=="Settings":
     section("Settings")
-    tabs_s=st.tabs(["프로필","API 키","AI 엔진","목표&습관","캘린더 라벨","템플릿","AI 프롬프트","대시보드 문구","통계"])
+    tabs_s=st.tabs(["프로필","API 키","AI 엔진","목표&습관","캘린더 라벨","템플릿","AI 프롬프트","대시보드 문구","협업 공유","통계"])
 
     with tabs_s[0]:
         # 프로필 사진
@@ -1721,6 +1877,51 @@ elif page=="Settings":
                         st.markdown(f'<div class="pa-quote"><div class="pa-quote-text">"{text}"</div>{"<div class=pa-quote-ref>"+ref+"</div>" if ref else ""}</div>',unsafe_allow_html=True)
 
     with tabs_s[8]:
+        section_h = "협업 공유"
+        st.markdown(f'<div class="pa-section">내 앱 공유하기</div>', unsafe_allow_html=True)
+        st.caption("다른 사용자에게 내 노트/태스크를 공유할 수 있습니다")
+
+        # Add shared access SQL note
+        st.info("💡 먼저 Supabase SQL Editor에서 sharing_setup.sql을 실행해야 합니다")
+
+        sh1,sh2=st.columns([3,1])
+        share_email=sh1.text_input("공유할 이메일",placeholder="friend@example.com",key="share_email")
+        share_perm=sh2.selectbox("권한",["view","edit"],format_func=lambda x:{"view":"👁️ 보기","edit":"✏️ 편집"}[x],key="share_perm")
+        if st.button("공유 추가",type="primary",key="add_share"):
+            if share_email and DB:
+                try:
+                    name,err=add_shared_access(uid,share_email,share_perm)
+                    if name: st.success(f"✅ {name}님과 공유됨!")
+                    else: st.error(err or "공유 실패")
+                except: st.error("공유 기능을 사용하려면 Supabase에 shared_access 테이블이 필요합니다")
+
+        if DB:
+            try:
+                shared=get_shared_users(uid)
+                if shared:
+                    st.markdown(f'<div class="pa-section">공유 중인 사용자</div>', unsafe_allow_html=True)
+                    for s in shared:
+                        sc1,sc2=st.columns([4,1])
+                        perm_icon="👁️" if s.get("permission")=="view" else "✏️"
+                        sc1.markdown(f"{perm_icon} {s.get('shared_email','')} ({s.get('permission','')})")
+                        if sc2.button("취소",key=f"rm_share_{s['id']}"): remove_shared_access(uid,s["shared_with_id"]); st.rerun()
+            except: st.caption("공유 기능 미설정")
+
+        st.markdown("---")
+        st.markdown(f'<div class="pa-section">공유받은 앱</div>', unsafe_allow_html=True)
+        if DB:
+            try:
+                accesses=get_my_accesses(uid)
+                if accesses:
+                    for a in accesses:
+                        owner=a.get("profiles",{})
+                        owner_name=owner.get("display_name","") if isinstance(owner,dict) else ""
+                        perm_icon2="👁️" if a.get("permission")=="view" else "✏️"
+                        st.markdown(f"{perm_icon2} **{owner_name}**님의 앱")
+                else: st.caption("공유받은 앱 없음")
+            except: st.caption("공유 기능 미설정")
+
+    with tabs_s[9]:
         if DB:
             c1,c2,c3=st.columns(3); c1.metric("노트",len(get_notes(uid))); c2.metric("태스크",len(get_tasks(uid))); c3.metric("DB","연결됨")
 
