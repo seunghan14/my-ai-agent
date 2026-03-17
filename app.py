@@ -37,6 +37,7 @@ defs = {
     "sidebar_pages_order":None,
     "fab_rendered":False,
     "chat_input_key":0,
+    "chat_unsaved":False,
 }
 for k,v in defs.items():
     if k not in st.session_state: st.session_state[k]=v
@@ -133,7 +134,7 @@ D = {
         "bg":"#FFFFFF","surface":"#F7F6F3","surface2":"#EFEDE8",
         "border":"#E9E9E7","border2":"#D3D1CB",
         "text":"#37352F","text2":"#787774","text3":"#AEACAA",
-        "accent":"#4F46E5","accent_h":"#4338CA",
+        "accent":"#818CF8","accent_h":"#6D5FD8",
         "success":"#059669","warning":"#D97706","danger":"#DC2626",
         "sidebar":"#F7F6F3","input_bg":"#FFFFFF",
         "placeholder":"#AEACAA",
@@ -142,177 +143,201 @@ D = {
         "bg":"#191919","surface":"#252525","surface2":"#2F2F2F",
         "border":"#373737","border2":"#474747",
         "text":"#CFCFCF","text2":"#9B9B9B","text3":"#606060",
-        "accent":"#4F46E5","accent_h":"#4338CA",
+        "accent":"#818CF8","accent_h":"#6D5FD8",
         "success":"#10B981","warning":"#F59E0B","danger":"#DC2626",
         "sidebar":"#202020","input_bg":"#252525",
         "placeholder":"#555555",
     }
 }[th]
 
-st.markdown(f"""<style>
+# ===== CSS 캐시 (매 렌더링 f-string 재생성 방지 → 속도 개선) =====
+@st.cache_data(max_entries=2)
+def _build_css(theme):
+    d = {
+        "light":{
+            "bg":"#FFFFFF","surface":"#F7F6F3","surface2":"#EFEDE8",
+            "border":"#E9E9E7","border2":"#D3D1CB",
+            "text":"#37352F","text2":"#787774","text3":"#AEACAA",
+            "accent":"#818CF8","accent_h":"#6D5FD8",
+            "success":"#059669","warning":"#D97706","danger":"#DC2626",
+            "sidebar":"#F7F6F3","input_bg":"#FFFFFF","placeholder":"#AEACAA",
+        },
+        "dark":{
+            "bg":"#191919","surface":"#252525","surface2":"#2F2F2F",
+            "border":"#373737","border2":"#474747",
+            "text":"#CFCFCF","text2":"#9B9B9B","text3":"#606060",
+            "accent":"#818CF8","accent_h":"#6D5FD8",
+            "success":"#10B981","warning":"#F59E0B","danger":"#DC2626",
+            "sidebar":"#202020","input_bg":"#252525","placeholder":"#555555",
+        }
+    }[theme]
+    return f"""<style>
 *, *::before, *::after {{ box-sizing: border-box; }}
-.stApp {{ background:{D['bg']} !important; font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif !important; }}
+.stApp {{ background:{d['bg']} !important; font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif !important; }}
 #MainMenu, footer, header[data-testid="stHeader"] {{ display:none !important; visibility:hidden !important; height:0 !important; }}
 .stDeployButton {{ display:none !important; }}
 [data-testid="stToolbar"] {{ display:none !important; }}
-.stApp p, .stApp span, .stApp div, .stApp label {{ color:{D['text']}; font-size:14px; line-height:1.6; }}
-h1,h2,h3,h4 {{ color:{D['text']} !important; font-weight:600 !important; letter-spacing:-0.02em; }}
+.stApp p, .stApp span, .stApp div, .stApp label {{ color:{d['text']}; font-size:14px; line-height:1.6; }}
+h1,h2,h3,h4 {{ color:{d['text']} !important; font-weight:600 !important; letter-spacing:-0.02em; }}
 h2 {{ font-size:1.4rem !important; margin-bottom:16px !important; }}
 h3 {{ font-size:1.05rem !important; }}
-section[data-testid="stSidebar"] {{ background:{D['sidebar']} !important; border-right:1px solid {D['border']} !important; }}
-section[data-testid="stSidebar"] > div {{ background:{D['sidebar']} !important; padding-top:0 !important; }}
-section[data-testid="stSidebar"] p {{ color:{D['text']} !important; }}
-section[data-testid="stSidebar"] span {{ color:{D['text']} !important; }}
-section[data-testid="stSidebar"] div {{ color:{D['text']} !important; }}
-section[data-testid="stSidebar"] label {{ color:{D['text']} !important; }}
+section[data-testid="stSidebar"] {{ background:{d['sidebar']} !important; border-right:1px solid {d['border']} !important; }}
+section[data-testid="stSidebar"] > div {{ background:{d['sidebar']} !important; padding-top:0 !important; }}
+section[data-testid="stSidebar"] p {{ color:{d['text']} !important; }}
+section[data-testid="stSidebar"] span {{ color:{d['text']} !important; }}
+section[data-testid="stSidebar"] div {{ color:{d['text']} !important; }}
+section[data-testid="stSidebar"] label {{ color:{d['text']} !important; }}
 section[data-testid="stSidebar"] div[data-testid="stRadio"] > div {{
     display:flex; flex-direction:column; gap:1px;
 }}
 section[data-testid="stSidebar"] div[data-testid="stRadio"] label {{
-    font-size:14px !important; color:{D['text2']} !important;
+    font-size:14px !important; color:{d['text2']} !important;
     padding:5px 10px !important; border-radius:6px !important;
     cursor:pointer !important; transition:background 0.1s !important;
     display:flex !important; align-items:center !important;
     background:transparent !important; width:100% !important;
 }}
 section[data-testid="stSidebar"] div[data-testid="stRadio"] label:hover {{
-    background:{D['surface2']} !important; color:{D['text']} !important;
+    background:{d['surface2']} !important; color:{d['text']} !important;
 }}
 section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has([aria-checked="true"]) {{
-    background:{D['surface2']} !important; color:{D['text']} !important; font-weight:500 !important;
+    background:{d['surface2']} !important; color:{d['text']} !important; font-weight:500 !important;
 }}
 section[data-testid="stSidebar"] div[data-testid="stRadio"] label > div:first-child {{
     display:none !important;
 }}
 .stTextInput input, .stTextArea textarea, .stNumberInput input {{
-    background:{D['input_bg']} !important; color:{D['text']} !important;
-    border:1px solid {D['border']} !important; border-radius:8px !important; font-size:14px !important;
+    background:{d['input_bg']} !important; color:{d['text']} !important;
+    border:1px solid {d['border']} !important; border-radius:8px !important; font-size:14px !important;
 }}
 .stTextInput input::placeholder, .stTextArea textarea::placeholder {{
-    color:{D['placeholder']} !important; opacity:1 !important;
+    color:{d['placeholder']} !important; opacity:1 !important;
 }}
 .stTextInput input:focus, .stTextArea textarea:focus {{
-    border-color:{D['accent']} !important;
-    box-shadow:0 0 0 3px {D['accent']}25 !important; outline:none !important;
+    border-color:{d['accent']} !important;
+    box-shadow:0 0 0 3px {d['accent']}25 !important; outline:none !important;
 }}
 .stSelectbox > div > div {{
-    background:{D['input_bg']} !important; color:{D['text']} !important;
-    border:1px solid {D['border']} !important; border-radius:8px !important;
+    background:{d['input_bg']} !important; color:{d['text']} !important;
+    border:1px solid {d['border']} !important; border-radius:8px !important;
 }}
-.stSelectbox svg {{ fill:{D['text2']} !important; }}
-[data-baseweb="select"] [data-testid="stMarkdownContainer"] p {{ color:{D['text']} !important; }}
-[data-baseweb="popover"] {{ background:{D['surface']} !important; border:1px solid {D['border']} !important; }}
-[data-baseweb="menu"] {{ background:{D['surface']} !important; }}
-[role="option"] {{ background:{D['surface']} !important; color:{D['text']} !important; }}
-[role="option"]:hover {{ background:{D['surface2']} !important; }}
+.stSelectbox svg {{ fill:{d['text2']} !important; }}
+[data-baseweb="select"] [data-testid="stMarkdownContainer"] p {{ color:{d['text']} !important; }}
+[data-baseweb="popover"] {{ background:{d['surface']} !important; border:1px solid {d['border']} !important; }}
+[data-baseweb="menu"] {{ background:{d['surface']} !important; }}
+[role="option"] {{ background:{d['surface']} !important; color:{d['text']} !important; }}
+[role="option"]:hover {{ background:{d['surface2']} !important; }}
 .stButton > button {{
     border-radius:6px !important; font-size:13.5px !important; font-weight:500 !important;
-    padding:5px 14px !important; border:1px solid {D['border']} !important;
-    background:{D['surface']} !important; color:{D['text2']} !important;
+    padding:5px 14px !important; border:1px solid {d['border']} !important;
+    background:{d['surface']} !important; color:{d['text2']} !important;
     transition:all 0.12s !important; box-shadow:none !important; line-height:1.5 !important;
 }}
 .stButton > button:hover {{
-    background:{D['surface2']} !important; border-color:{D['border2']} !important; color:{D['text']} !important;
+    background:{d['surface2']} !important; border-color:{d['border2']} !important; color:{d['text']} !important;
 }}
 .stButton > button[kind="primary"], button[kind="primary"] {{
-    background:{D['accent']} !important; color:#FFFFFF !important;
-    border:1px solid {D['accent']} !important; font-weight:600 !important;
+    background:{d['accent']} !important; color:#FFFFFF !important;
+    border:1px solid {d['accent']} !important; font-weight:600 !important;
 }}
 .stButton > button[kind="primary"]:hover {{
-    background:{D['accent_h']} !important; color:#FFFFFF !important; border-color:{D['accent_h']} !important;
+    background:{d['accent_h']} !important; color:#FFFFFF !important; border-color:{d['accent_h']} !important;
 }}
 [data-testid="stButton"] button[kind="primary"] *, [data-testid="stButton"] button[kind="primary"] p,
 [data-testid="stButton"] button[kind="primary"] span {{ color:#FFFFFF !important; }}
 div[data-testid="stMetric"] {{
-    background:{D['surface']} !important; border:1px solid {D['border']} !important;
+    background:{d['surface']} !important; border:1px solid {d['border']} !important;
     border-radius:12px !important; padding:16px !important; cursor:pointer; transition:border-color 0.15s;
 }}
-div[data-testid="stMetric"]:hover {{ border-color:{D['accent']} !important; }}
-div[data-testid="stMetricValue"] {{ color:{D['text']} !important; font-size:1.8rem !important; font-weight:700 !important; }}
-div[data-testid="stMetricLabel"] {{ color:{D['text2']} !important; font-size:12px !important; text-transform:uppercase; letter-spacing:0.05em; }}
-div[data-baseweb="tab-list"] {{ background:transparent !important; border-bottom:1px solid {D['border']} !important; gap:0 !important; }}
-button[data-baseweb="tab"] {{ color:{D['text2']} !important; font-size:13.5px !important; font-weight:500 !important; padding:8px 16px !important; background:transparent !important; border:none !important; border-bottom:2px solid transparent !important; }}
-button[data-baseweb="tab"]:hover {{ color:{D['text']} !important; background:{D['surface']} !important; }}
-button[data-baseweb="tab"][aria-selected="true"] {{ color:{D['accent']} !important; border-bottom:2px solid {D['accent']} !important; }}
-div[data-testid="stExpander"] {{ border:1px solid {D['border']} !important; border-radius:10px !important; background:{D['surface']} !important; overflow:hidden; }}
-div[data-testid="stExpander"] summary {{ color:{D['text']} !important; font-weight:500 !important; background:{D['surface']} !important; }}
-div[data-testid="stExpander"] summary:hover {{ background:{D['surface2']} !important; }}
-div[data-testid="stInfo"] {{ background:{D['accent']}15 !important; border:1px solid {D['accent']}35 !important; border-radius:8px !important; color:{D['text']} !important; }}
-div[data-testid="stInfo"] p {{ color:{D['text']} !important; }}
-div[data-testid="stSuccess"] {{ background:{D['success']}15 !important; border:1px solid {D['success']}35 !important; border-radius:8px !important; }}
-div[data-testid="stSuccess"] p {{ color:{D['text']} !important; }}
-div[data-testid="stWarning"] {{ background:{D['warning']}15 !important; border:1px solid {D['warning']}35 !important; border-radius:8px !important; }}
-div[data-testid="stWarning"] p {{ color:{D['text']} !important; }}
-div[data-testid="stError"] {{ background:{D['danger']}15 !important; border:1px solid {D['danger']}35 !important; border-radius:8px !important; }}
-div[data-testid="stError"] p {{ color:{D['text']} !important; }}
-div[data-testid="stProgressBar"] > div {{ background:{D['surface2']} !important; border-radius:99px !important; }}
-div[data-testid="stProgressBar"] > div > div {{ background:{D['accent']} !important; border-radius:99px !important; }}
-div[data-testid="stCheckbox"] label {{ color:{D['text']} !important; }}
-div[data-testid="stRadio"] label {{ color:{D['text']} !important; }}
-div[data-testid="stToggle"] label {{ color:{D['text']} !important; }}
-hr {{ border:none !important; border-top:1px solid {D['border']} !important; margin:16px 0 !important; }}
-code {{ background:{D['surface2']} !important; color:{D['accent']} !important; border-radius:4px !important; padding:1px 6px !important; font-size:12px !important; }}
-div[data-testid="stFileUploader"] {{ background:{D['surface']} !important; border:1px dashed {D['border2']} !important; border-radius:10px !important; }}
-div[data-testid="stFileUploader"] p {{ color:{D['text2']} !important; }}
-.stDateInput input {{ background:{D['input_bg']} !important; color:{D['text']} !important; border:1px solid {D['border']} !important; border-radius:8px !important; }}
-.stTimeInput input {{ background:{D['input_bg']} !important; color:{D['text']} !important; border:1px solid {D['border']} !important; border-radius:8px !important; }}
-div[data-testid="stNumberInput"] input {{ background:{D['input_bg']} !important; color:{D['text']} !important; }}
-div[data-testid="stNumberInput"] button {{ background:{D['surface2']} !important; color:{D['text']} !important; border-color:{D['border']} !important; }}
+div[data-testid="stMetric"]:hover {{ border-color:{d['accent']} !important; }}
+div[data-testid="stMetricValue"] {{ color:{d['text']} !important; font-size:1.8rem !important; font-weight:700 !important; }}
+div[data-testid="stMetricLabel"] {{ color:{d['text2']} !important; font-size:12px !important; text-transform:uppercase; letter-spacing:0.05em; }}
+div[data-baseweb="tab-list"] {{ background:transparent !important; border-bottom:1px solid {d['border']} !important; gap:0 !important; }}
+button[data-baseweb="tab"] {{ color:{d['text2']} !important; font-size:13.5px !important; font-weight:500 !important; padding:8px 16px !important; background:transparent !important; border:none !important; border-bottom:2px solid transparent !important; }}
+button[data-baseweb="tab"]:hover {{ color:{d['text']} !important; background:{d['surface']} !important; }}
+button[data-baseweb="tab"][aria-selected="true"] {{ color:{d['accent']} !important; border-bottom:2px solid {d['accent']} !important; }}
+div[data-testid="stExpander"] {{ border:1px solid {d['border']} !important; border-radius:10px !important; background:{d['surface']} !important; overflow:hidden; }}
+div[data-testid="stExpander"] summary {{ color:{d['text']} !important; font-weight:500 !important; background:{d['surface']} !important; }}
+div[data-testid="stExpander"] summary:hover {{ background:{d['surface2']} !important; }}
+div[data-testid="stInfo"] {{ background:{d['accent']}15 !important; border:1px solid {d['accent']}35 !important; border-radius:8px !important; color:{d['text']} !important; }}
+div[data-testid="stInfo"] p {{ color:{d['text']} !important; }}
+div[data-testid="stSuccess"] {{ background:{d['success']}15 !important; border:1px solid {d['success']}35 !important; border-radius:8px !important; }}
+div[data-testid="stSuccess"] p {{ color:{d['text']} !important; }}
+div[data-testid="stWarning"] {{ background:{d['warning']}15 !important; border:1px solid {d['warning']}35 !important; border-radius:8px !important; }}
+div[data-testid="stWarning"] p {{ color:{d['text']} !important; }}
+div[data-testid="stError"] {{ background:{d['danger']}15 !important; border:1px solid {d['danger']}35 !important; border-radius:8px !important; }}
+div[data-testid="stError"] p {{ color:{d['text']} !important; }}
+div[data-testid="stProgressBar"] > div {{ background:{d['surface2']} !important; border-radius:99px !important; }}
+div[data-testid="stProgressBar"] > div > div {{ background:{d['accent']} !important; border-radius:99px !important; }}
+div[data-testid="stCheckbox"] label {{ color:{d['text']} !important; }}
+div[data-testid="stRadio"] label {{ color:{d['text']} !important; }}
+div[data-testid="stToggle"] label {{ color:{d['text']} !important; }}
+hr {{ border:none !important; border-top:1px solid {d['border']} !important; margin:16px 0 !important; }}
+code {{ background:{d['surface2']} !important; color:{d['accent']} !important; border-radius:4px !important; padding:1px 6px !important; font-size:12px !important; }}
+div[data-testid="stFileUploader"] {{ background:{d['surface']} !important; border:1px dashed {d['border2']} !important; border-radius:10px !important; }}
+div[data-testid="stFileUploader"] p {{ color:{d['text2']} !important; }}
+.stDateInput input {{ background:{d['input_bg']} !important; color:{d['text']} !important; border:1px solid {d['border']} !important; border-radius:8px !important; }}
+.stTimeInput input {{ background:{d['input_bg']} !important; color:{d['text']} !important; border:1px solid {d['border']} !important; border-radius:8px !important; }}
+div[data-testid="stNumberInput"] input {{ background:{d['input_bg']} !important; color:{d['text']} !important; }}
+div[data-testid="stNumberInput"] button {{ background:{d['surface2']} !important; color:{d['text']} !important; border-color:{d['border']} !important; }}
 @media(max-width:768px){{
   [data-testid="stHorizontalBlock"]>div{{flex:100%!important;max-width:100%!important}}
   h2{{font-size:1.2rem!important}}
   .stApp p{{font-size:13px}}
 }}
-div[data-baseweb="radio"] div {{ background:{D['surface']} !important; border-color:{D['border']} !important; }}
-div[data-baseweb="radio"] div[data-checked="true"] {{ background:{D['accent']} !important; border-color:{D['accent']} !important; }}
-div[data-baseweb="checkbox"] div {{ background:{D['surface']} !important; border-color:{D['border']} !important; }}
-div[data-baseweb="checkbox"] div[data-checked="true"] {{ background:{D['accent']} !important; border-color:{D['accent']} !important; }}
-div[data-testid="stToggle"] {{ background:{D['surface']} !important; }}
-div[data-testid="stToggle"] > div {{ background:{D['surface2']} !important; }}
-div[data-baseweb="tag"] {{ background:{D['accent']}30 !important; color:{D['text']} !important; }}
-div[data-testid="stDateInput"] input {{ background:{D['input_bg']} !important; color:{D['text']} !important; border-color:{D['border']} !important; }}
-div[data-testid="stTimeInput"] input {{ background:{D['input_bg']} !important; color:{D['text']} !important; border-color:{D['border']} !important; }}
-div[data-testid="stDateInput"] > div {{ background:{D['input_bg']} !important; }}
-div[data-testid="stTimeInput"] > div {{ background:{D['input_bg']} !important; }}
-[data-baseweb="calendar"] {{ background:{D['surface']} !important; color:{D['text']} !important; }}
-[data-baseweb="calendar"] * {{ color:{D['text']} !important; }}
-[data-baseweb="calendar"] button {{ background:{D['surface']} !important; color:{D['text']} !important; }}
-div[data-testid="stSlider"] div {{ background:{D['surface2']} !important; }}
-div[data-testid="stSlider"] div[role="slider"] {{ background:{D['accent']} !important; border-color:{D['accent']} !important; }}
+div[data-baseweb="radio"] div {{ background:{d['surface']} !important; border-color:{d['border']} !important; }}
+div[data-baseweb="radio"] div[data-checked="true"] {{ background:{d['accent']} !important; border-color:{d['accent']} !important; }}
+div[data-baseweb="checkbox"] div {{ background:{d['surface']} !important; border-color:{d['border']} !important; }}
+div[data-baseweb="checkbox"] div[data-checked="true"] {{ background:{d['accent']} !important; border-color:{d['accent']} !important; }}
+div[data-testid="stToggle"] {{ background:{d['surface']} !important; }}
+div[data-testid="stToggle"] > div {{ background:{d['surface2']} !important; }}
+div[data-baseweb="tag"] {{ background:{d['accent']}30 !important; color:{d['text']} !important; }}
+div[data-testid="stDateInput"] input {{ background:{d['input_bg']} !important; color:{d['text']} !important; border-color:{d['border']} !important; }}
+div[data-testid="stTimeInput"] input {{ background:{d['input_bg']} !important; color:{d['text']} !important; border-color:{d['border']} !important; }}
+div[data-testid="stDateInput"] > div {{ background:{d['input_bg']} !important; }}
+div[data-testid="stTimeInput"] > div {{ background:{d['input_bg']} !important; }}
+[data-baseweb="calendar"] {{ background:{d['surface']} !important; color:{d['text']} !important; }}
+[data-baseweb="calendar"] * {{ color:{d['text']} !important; }}
+[data-baseweb="calendar"] button {{ background:{d['surface']} !important; color:{d['text']} !important; }}
+div[data-testid="stSlider"] div {{ background:{d['surface2']} !important; }}
+div[data-testid="stSlider"] div[role="slider"] {{ background:{d['accent']} !important; border-color:{d['accent']} !important; }}
 ::-webkit-scrollbar {{ width:6px; height:6px; }}
-::-webkit-scrollbar-track {{ background:{D['surface']} !important; }}
-::-webkit-scrollbar-thumb {{ background:{D['border2']} !important; border-radius:3px; }}
+::-webkit-scrollbar-track {{ background:{d['surface']} !important; }}
+::-webkit-scrollbar-thumb {{ background:{d['border2']} !important; border-radius:3px; }}
 div[data-testid="stMarkdownContainer"] {{ background:transparent !important; }}
-div[data-testid="stDownloadButton"] button {{ background:{D['surface']} !important; color:{D['text']} !important; border-color:{D['border']} !important; }}
+div[data-testid="stDownloadButton"] button {{ background:{d['surface']} !important; color:{d['text']} !important; border-color:{d['border']} !important; }}
 div[data-testid="stNumberInput"] {{ background:transparent !important; }}
-div[data-testid="stNumberInput"] > div {{ background:{D['input_bg']} !important; border-color:{D['border']} !important; border-radius:8px; }}
-.pa-logo {{ font-size:1.6rem; font-weight:700; color:{D['text']}; letter-spacing:-0.03em; padding:20px 0 2px; cursor:pointer; transition:opacity 0.15s; font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif; line-height:1.2; }}
+div[data-testid="stNumberInput"] > div {{ background:{d['input_bg']} !important; border-color:{d['border']} !important; border-radius:8px; }}
+.pa-logo {{ font-size:1.6rem; font-weight:700; color:{d['text']}; letter-spacing:-0.03em; padding:20px 0 2px; cursor:pointer; transition:opacity 0.15s; font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif; line-height:1.2; }}
 .pa-logo:hover {{ opacity:0.7; }}
-.pa-logo-sub {{ font-size:11px; color:{D['text3']}; letter-spacing:0.04em; text-transform:uppercase; margin-top:2px; padding-bottom:12px; }}
-.pa-section {{ font-size:11px; font-weight:600; color:{D['text3']}; letter-spacing:0.06em; text-transform:uppercase; margin:16px 0 6px; padding:0 2px; }}
-.pa-card {{ background:{D['surface']}; border:1px solid {D['border']}; border-radius:12px; padding:14px 16px; margin:6px 0; }}
-.pa-breadcrumb {{ font-size:12px; color:{D['text3']}; margin-bottom:10px; display:flex; align-items:center; gap:6px; }}
-.pa-empty {{ text-align:center; padding:40px 20px; color:{D['text3']}; }}
+.pa-logo-sub {{ font-size:11px; color:{d['text3']}; letter-spacing:0.04em; text-transform:uppercase; margin-top:2px; padding-bottom:12px; }}
+.pa-section {{ font-size:11px; font-weight:600; color:{d['text3']}; letter-spacing:0.06em; text-transform:uppercase; margin:16px 0 6px; padding:0 2px; }}
+.pa-card {{ background:{d['surface']}; border:1px solid {d['border']}; border-radius:12px; padding:14px 16px; margin:6px 0; }}
+.pa-breadcrumb {{ font-size:12px; color:{d['text3']}; margin-bottom:10px; display:flex; align-items:center; gap:6px; }}
+.pa-empty {{ text-align:center; padding:40px 20px; color:{d['text3']}; }}
 .pa-empty-icon {{ font-size:2.5rem; margin-bottom:10px; }}
-.pa-editing-badge {{ background:{D['warning']}15; border:1px solid {D['warning']}40; border-radius:8px; padding:8px 14px; margin-bottom:12px; font-size:13px; color:{D['text']}; }}
-.pa-quote {{ background:linear-gradient(135deg,{D['accent']}18,{D['surface']}); border-left:3px solid {D['accent']}; border-radius:0 12px 12px 0; padding:16px 20px; margin:16px 0; }}
-.pa-quote-text {{ font-size:1.05rem; font-weight:500; color:{D['text']}; line-height:1.6; font-style:italic; }}
-.pa-quote-ref {{ font-size:12px; color:{D['text3']}; margin-top:6px; }}
+.pa-editing-badge {{ background:{d['warning']}15; border:1px solid {d['warning']}40; border-radius:8px; padding:8px 14px; margin-bottom:12px; font-size:13px; color:{d['text']}; }}
+.pa-quote {{ background:linear-gradient(135deg,{d['accent']}18,{d['surface']}); border-left:3px solid {d['accent']}; border-radius:0 12px 12px 0; padding:16px 20px; margin:16px 0; }}
+.pa-quote-text {{ font-size:1.05rem; font-weight:500; color:{d['text']}; line-height:1.6; font-style:italic; }}
+.pa-quote-ref {{ font-size:12px; color:{d['text3']}; margin-top:6px; }}
 /* Calendar event pill */
 .cal-event-pill {{ font-size:10px; font-weight:500; padding:1px 5px; border-radius:3px; margin:1px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }}
 /* AI Chat */
 .chat-container {{ display:flex; flex-direction:column; gap:12px; padding:8px 0; }}
 .chat-user {{ display:flex; justify-content:flex-end; }}
 .chat-ai {{ display:flex; justify-content:flex-start; gap:8px; align-items:flex-start; }}
-.chat-bubble-user {{ background:{D['accent']}; color:#fff; padding:10px 14px; border-radius:18px 18px 4px 18px; font-size:14px; line-height:1.5; max-width:75%; }}
-.chat-bubble-ai {{ background:{D['surface']}; color:{D['text']}; padding:10px 14px; border-radius:18px 18px 18px 4px; font-size:14px; line-height:1.5; max-width:75%; border:1px solid {D['border']}; }}
-.chat-avatar {{ width:28px; height:28px; border-radius:50%; background:{D['accent']}20; display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; margin-top:2px; }}
+.chat-bubble-user {{ background:{d['accent']}30; color:{d['text']}; padding:10px 14px; border-radius:18px 18px 4px 18px; font-size:14px; line-height:1.5; max-width:75%; border:1px solid {d['accent']}60; }}
+.chat-bubble-ai {{ background:{d['surface']}; color:{d['text']}; padding:10px 14px; border-radius:18px 18px 18px 4px; font-size:14px; line-height:1.5; max-width:75%; border:1px solid {d['border']}; }}
+.chat-avatar {{ width:28px; height:28px; border-radius:50%; background:{d['accent']}20; display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; margin-top:2px; }}
 /* Mobile FAB */
-#pa-fab {{ position:fixed; bottom:24px; left:16px; z-index:99999; display:none; }}
-#pa-fab button {{ width:48px; height:48px; border-radius:50%; background:{D['accent']}; color:#fff; border:none; font-size:20px; cursor:pointer; box-shadow:0 4px 16px rgba(79,70,229,0.35); transition:transform .15s; }}
+#pa-fab {{ position:fixed; top:80px; left:16px; z-index:99999; display:none; }}
+#pa-fab button {{ width:48px; height:48px; border-radius:50%; background:{d['accent']}; color:#fff; border:none; font-size:20px; cursor:pointer; box-shadow:0 4px 16px rgba(79,70,229,0.35); transition:transform .15s; }}
 #pa-fab button:hover {{ transform:scale(1.1); }}
 @media(max-width:768px){{ #pa-fab {{ display:block !important; }} }}
-</style>""", unsafe_allow_html=True)
+</style>"""
+
+st.markdown(_build_css(th), unsafe_allow_html=True)
+
 
 # ===== FAB (1회만 렌더링) =====
 if not st.session_state.fab_rendered:
@@ -659,7 +684,18 @@ if page=="AI Chat":
     ctrl1,ctrl2,ctrl3=st.columns([2,1,1])
     chat_model_sel=ctrl1.radio("",["Gemini","Claude"],horizontal=True,label_visibility="collapsed",key="chat_model_sel")
     if ctrl2.button("새 대화",use_container_width=True):
-        st.session_state.chat_messages=[]; st.session_state.chat_input_key+=1; st.rerun()
+        if st.session_state.get("chat_messages") and st.session_state.get("chat_unsaved",False):
+            st.session_state["chat_new_confirm"]=True; st.rerun()
+        else:
+            st.session_state.chat_messages=[]; st.session_state.chat_input_key+=1; st.session_state.chat_unsaved=False; st.rerun()
+    if st.session_state.get("chat_new_confirm"):
+        st.warning("⚠️ 현재 대화가 저장되지 않았습니다. 새 대화를 시작하면 사라집니다.")
+        cn1,cn2=st.columns(2)
+        if cn1.button("저장 없이 시작",type="primary",use_container_width=True,key="cnf_ok"):
+            st.session_state.chat_messages=[]; st.session_state.chat_input_key+=1
+            st.session_state.chat_unsaved=False; st.session_state.chat_new_confirm=False; st.rerun()
+        if cn2.button("취소",use_container_width=True,key="cnf_no"):
+            st.session_state.chat_new_confirm=False; st.rerun()
     if ctrl3.button("노트 저장",use_container_width=True):
         st.session_state["chat_save_mode"]=True; st.rerun()
 
@@ -690,7 +726,7 @@ if page=="AI Chat":
             if chat_title and DB:
                 content2="\n\n".join([f"**{'나' if m['role']=='user' else 'AI'}**: {m['content']}" for m in msgs])
                 create_note(uid,chat_title,content2,"note"); invalidate_cache()
-                st.success("저장됨!"); st.session_state["chat_save_mode"]=False; st.rerun()
+                st.success("저장됨!"); st.session_state["chat_save_mode"]=False; st.session_state.chat_unsaved=False; st.rerun()
             elif not chat_title: st.warning("제목 입력")
         if sc3.button("취소",use_container_width=True): st.session_state["chat_save_mode"]=False; st.rerun()
 
@@ -709,6 +745,7 @@ if page=="AI Chat":
             except: response=get_ai(f"대화:\n{ctx}\n\n답해줘.","gemini","chat")
             msgs.append({"role":"assistant","content":response,"model":engine2})
         st.session_state.chat_messages=msgs
+        st.session_state.chat_unsaved=True
         # Auto-clear input
         st.session_state.chat_input_key+=1
         st.rerun()
@@ -1172,6 +1209,14 @@ elif page=="Tasks":
             if not at:
                 st.markdown(f'<div class="pa-empty"><div class="pa-empty-icon">✅</div><p style="color:{D["text3"]}">태스크 없음<br><small>위에서 추가하세요</small></p></div>',unsafe_allow_html=True)
             else:
+                # 멀티셀렉션 일괄 삭제
+                with st.expander("🗑 일괄 삭제"):
+                    task_options={t["id"]:f"[{t['status'].upper()}] {t['title']}" for t in at}
+                    sel_del_tasks=st.multiselect("삭제할 태스크 선택",options=list(task_options.keys()),format_func=lambda x:task_options[x],label_visibility="collapsed",placeholder="삭제할 항목 선택...")
+                    if sel_del_tasks:
+                        if st.button(f"선택 {len(sel_del_tasks)}개 삭제",type="primary",use_container_width=True,key="bulk_del_tasks"):
+                            for tid in sel_del_tasks: delete_task(tid)
+                            invalidate_cache(); st.success(f"{len(sel_del_tasks)}개 삭제됨"); st.rerun()
                 sc=st.columns(4)
                 sc_cfg=[("backlog","Backlog","#94A3B8"),("todo","To Do","#3B82F6"),("doing","Doing","#F97316"),("done","Done","#22C55E")]
                 for col,(s,lb,cc) in zip(sc,sc_cfg):
@@ -1450,6 +1495,14 @@ elif page=="Notes":
                 if not notes:
                     st.markdown(f'<div class="pa-empty"><div class="pa-empty-icon">📝</div><p style="color:{D["text3"]}">노트 없음<br><small>+ New로 첫 노트를 만들어보세요</small></p></div>',unsafe_allow_html=True)
                 else:
+                    # 멀티셀렉션 일괄 삭제
+                    with st.expander("🗑 일괄 삭제"):
+                        note_options={n["id"]:n["title"] or "(제목 없음)" for n in notes}
+                        sel_del_notes=st.multiselect("삭제할 노트 선택",options=list(note_options.keys()),format_func=lambda x:note_options[x],label_visibility="collapsed",placeholder="삭제할 항목 선택...")
+                        if sel_del_notes:
+                            if st.button(f"선택 {len(sel_del_notes)}개 삭제",type="primary",use_container_width=True,key="bulk_del_notes"):
+                                for nid in sel_del_notes: delete_note(nid)
+                                invalidate_cache(); st.success(f"{len(sel_del_notes)}개 삭제됨"); st.rerun()
                     for n in notes:
                         ticon={"meeting":"📋","daily":"📅","idea":"💡","project":"📁"}.get(n.get("note_type"),"📝")
                         fav="⭐ " if n.get("is_favorite") else ""
