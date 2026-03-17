@@ -1,13 +1,18 @@
-"""DB Utils V4.6 - All Supabase operations"""
+"""DB Utils V4.7 - All Supabase operations"""
 import hashlib, streamlit as st
 from supabase import create_client
 from datetime import datetime, date, timedelta
 
-def get_sb():
+@st.cache_resource
+def _get_supabase_client():
+    """Supabase 클라이언트 1회 생성 후 재사용 (속도 개선)"""
     url = st.secrets.get("SUPABASE_URL","")
     key = st.secrets.get("SUPABASE_KEY","")
     if not url or not key: return None
     return create_client(url, key)
+
+def get_sb():
+    return _get_supabase_client()
 
 def _q(table):
     sb = get_sb()
