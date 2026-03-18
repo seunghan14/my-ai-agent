@@ -300,7 +300,7 @@ def index():
     """Render 헬스체크 + 슬립 방지"""
     return jsonify({"status": "ok", "service": "PA Telegram Bot"}), 200
 
-@app.route(f"/webhook/{BOT_TOKEN}", methods=["POST"])
+@app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.get_json(silent=True) or {}
     message = data.get("message") or data.get("edited_message")
