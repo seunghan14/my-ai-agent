@@ -354,7 +354,8 @@ if not st.session_state.fab_rendered:
     var b=window.parent.document.createElement('button');
     b.id='pa-fab-btn'; b.title='메뉴'; b.innerHTML='☰';
     b.onclick=function(){{
-        var sb=window.parent.document.querySelector('[data-testid="stSidebarCollapseButton"]');
+        var sb=window.parent.document.querySelector('[data-testid="stSidebarCollapsedControl"] button') ||
+               window.parent.document.querySelector('[data-testid="stSidebarCollapseButton"]');
         if(sb) sb.click();
     }};
     window.parent.document.body.appendChild(b);
@@ -680,7 +681,50 @@ with st.sidebar:
             st.rerun()
 
 if not st.session_state.logged_in:
-    st.markdown(f'<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:80vh;text-align:center"><div style="font-size:3rem;font-weight:800;color:{D["text"]};letter-spacing:-0.04em;margin-bottom:8px">Personal Assistant</div><p style="color:{D["text2"]};margin-bottom:32px">Notes · Tasks · Calendar · AI</p><p style="color:{D["text3"]};font-size:13px">← 왼쪽에서 로그인하세요</p></div>',unsafe_allow_html=True)
+    # 메인 영역 로그인 폼 — 사이드바 숨겨져도 항상 접근 가능
+    st.markdown(f'''<div style="display:flex;flex-direction:column;align-items:center;padding-top:60px">
+<div style="font-size:2.4rem;font-weight:800;color:{D["text"]};letter-spacing:-0.04em;margin-bottom:4px">Personal Assistant</div>
+<p style="color:{D["text2"]};margin-bottom:32px;font-size:14px">Notes · Tasks · Calendar · AI</p>
+</div>''', unsafe_allow_html=True)
+
+    col_l, col_m, col_r = st.columns([1, 1.2, 1])
+    with col_m:
+        st.markdown(f'<div style="background:{D["surface"]};border:1px solid {D["border"]};border-radius:16px;padding:28px 24px">',unsafe_allow_html=True)
+        main_tab = st.radio("로그인탭", ["로그인", "회원가입"], horizontal=True, label_visibility="collapsed", key="main_login_tab")
+
+        if main_tab == "로그인":
+            m_em = st.text_input("이메일", key="m_le", placeholder="you@example.com")
+            m_pw = st.text_input("비밀번호", type="password", key="m_lp", placeholder="••••••••")
+            if st.button("로그인", use_container_width=True, type="primary", key="m_login_btn"):
+                if DB:
+                    u, err = login_user(m_em, m_pw)
+                    if u:
+                        st.session_state.logged_in = True
+                        st.session_state.user = u
+                        st.query_params["uid"] = str(u["id"])
+                        components.html(f"<script>window.parent.postMessage({{type:'store_uid',uid:'{u['id']}'}}, '*');localStorage.setItem('pa_theme','{u.get('theme','light')}');</script>", height=0)
+                        st.rerun()
+                    else:
+                        st.error(err)
+                else:
+                    st.session_state.logged_in = True
+                    st.session_state.user = {"id": "demo", "email": m_em, "display_name": m_em.split("@")[0]}
+                    st.rerun()
+        else:
+            m_nm = st.text_input("이름", key="m_rn", placeholder="홍길동")
+            m_em2 = st.text_input("이메일", key="m_re", placeholder="you@example.com")
+            m_pw2 = st.text_input("비밀번호", type="password", key="m_rp", placeholder="8자 이상")
+            m_pw3 = st.text_input("비밀번호 확인", type="password", key="m_rp2", placeholder="••••••••")
+            if st.button("회원가입", use_container_width=True, type="primary", key="m_reg_btn"):
+                if m_pw2 != m_pw3:
+                    st.error("비밀번호가 일치하지 않습니다")
+                elif DB:
+                    u, err = register_user(m_em2, m_pw2, m_nm)
+                    if u:
+                        st.success("가입 완료! 로그인해주세요.")
+                    else:
+                        st.error(err)
+        st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
 user=st.session_state.user; uid=user["id"]; dname=user.get("display_name","User")
