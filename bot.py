@@ -1,6 +1,6 @@
 import os, json, requests
 from flask import Flask, request, jsonify
-from supabase import create_client
+
 
 app = Flask(__name__)
 
@@ -28,6 +28,7 @@ def get_sb():
     if not SUPABASE_URL or not SUPABASE_KEY:
         return None
     try:
+        from supabase import create_client
         return create_client(SUPABASE_URL, SUPABASE_KEY)
     except Exception:
         return None
