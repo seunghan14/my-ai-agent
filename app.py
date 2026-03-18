@@ -38,6 +38,7 @@ defs = {
     "fab_rendered":False,
     "chat_input_key":0,
     "chat_unsaved":False,
+    "main_login_mode":"로그인",
 }
 for k,v in defs.items():
     if k not in st.session_state: st.session_state[k]=v
@@ -356,7 +357,7 @@ if not st.session_state.fab_rendered:
     if(window.parent.document.getElementById('pa-fab-btn')) return;
     var s=window.parent.document.createElement('style');
     s.id='pa-fab-style';
-    s.textContent='#pa-fab-btn{{position:fixed;top:14px;left:14px;z-index:99999;width:44px;height:44px;border-radius:50%;background:{D["accent"]};color:#fff;border:none;font-size:20px;cursor:pointer;box-shadow:0 4px 16px rgba(79,70,229,0.35);transition:transform .15s;display:none;align-items:center;justify-content:center;line-height:1}}#pa-fab-btn:hover{{transform:scale(1.1)}}@media(max-width:768px){{#pa-fab-btn{{display:flex!important}}}}';
+    s.textContent='#pa-fab-btn{{position:fixed;top:10px;left:10px;z-index:99999;width:36px;height:36px;border-radius:8px;background:{D["surface"]};color:{D["text"]};border:1px solid {D["border"]};font-size:18px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.12);transition:transform .15s;display:flex;align-items:center;justify-content:center;line-height:1}}#pa-fab-btn:hover{{transform:scale(1.05);background:{D["surface2"]}}}';
     window.parent.document.head.appendChild(s);
     var b=window.parent.document.createElement('button');
     b.id='pa-fab-btn'; b.title='메뉴'; b.innerHTML='☰';
@@ -560,12 +561,13 @@ st.session_state.prev_page=cpn
 with st.sidebar:
     if not st.session_state.logged_in:
         st.markdown(f'<div class="pa-logo">PA</div><div class="pa-logo-sub">Personal Assistant</div>',unsafe_allow_html=True)
-        # ✅ FIX: label 경고 수정 (빈 문자열 → label_visibility="collapsed")
         tab=st.radio("메뉴선택",["Login","Sign Up"],horizontal=True,label_visibility="collapsed")
         if tab=="Login":
-            em=st.text_input("이메일",key="le",placeholder="you@example.com")
-            pw=st.text_input("비밀번호",type="password",key="lp",placeholder="••••••••")
-            if st.button("로그인",use_container_width=True,type="primary"):
+            with st.form("sidebar_login_form"):
+                em=st.text_input("이메일",key="le",placeholder="you@example.com")
+                pw=st.text_input("비밀번호",type="password",key="lp",placeholder="••••••••")
+                submitted=st.form_submit_button("로그인",use_container_width=True,type="primary")
+            if submitted:
                 if DB:
                     u,err=login_user(em,pw)
                     if u:
@@ -700,12 +702,25 @@ if not st.session_state.logged_in:
     col_l, col_m, col_r = st.columns([1, 1.2, 1])
     with col_m:
         st.markdown(f'<div style="background:{D["surface"]};border:1px solid {D["border"]};border-radius:16px;padding:28px 24px">',unsafe_allow_html=True)
-        main_tab = st.radio("로그인탭", ["로그인", "회원가입"], horizontal=True, label_visibility="collapsed", key="main_login_tab")
+        login_mode = st.session_state.get("main_login_mode", "로그인")
+        c_tab1, c_tab2 = st.columns(2)
+        if c_tab1.button("로그인", use_container_width=True,
+            type="primary" if login_mode=="로그인" else "secondary",
+            key="tab_login_btn"):
+            st.session_state["main_login_mode"] = "로그인"; st.rerun()
+        if c_tab2.button("회원가입", use_container_width=True,
+            type="primary" if login_mode=="회원가입" else "secondary",
+            key="tab_reg_btn"):
+            st.session_state["main_login_mode"] = "회원가입"; st.rerun()
 
-        if main_tab == "로그인":
-            m_em = st.text_input("이메일", key="m_le", placeholder="you@example.com")
-            m_pw = st.text_input("비밀번호", type="password", key="m_lp", placeholder="••••••••")
-            if st.button("로그인", use_container_width=True, type="primary", key="m_login_btn"):
+        st.markdown('<div style="height:12px"></div>', unsafe_allow_html=True)
+
+        if login_mode == "로그인":
+            with st.form("main_login_form"):
+                m_em = st.text_input("이메일", key="m_le", placeholder="you@example.com", label_visibility="collapsed")
+                m_pw = st.text_input("비밀번호", type="password", key="m_lp", placeholder="비밀번호", label_visibility="collapsed")
+                submitted = st.form_submit_button("로그인", use_container_width=True, type="primary")
+            if submitted:
                 if DB:
                     u, err = login_user(m_em, m_pw)
                     if u:
@@ -721,17 +736,21 @@ if not st.session_state.logged_in:
                     st.session_state.user = {"id": "demo", "email": m_em, "display_name": m_em.split("@")[0]}
                     st.rerun()
         else:
-            m_nm = st.text_input("이름", key="m_rn", placeholder="홍길동")
-            m_em2 = st.text_input("이메일", key="m_re", placeholder="you@example.com")
-            m_pw2 = st.text_input("비밀번호", type="password", key="m_rp", placeholder="8자 이상")
-            m_pw3 = st.text_input("비밀번호 확인", type="password", key="m_rp2", placeholder="••••••••")
-            if st.button("회원가입", use_container_width=True, type="primary", key="m_reg_btn"):
+            with st.form("main_reg_form"):
+                m_nm = st.text_input("이름", key="m_rn", placeholder="이름", label_visibility="collapsed")
+                m_em2 = st.text_input("이메일", key="m_re", placeholder="이메일", label_visibility="collapsed")
+                m_pw2 = st.text_input("비밀번호", type="password", key="m_rp", placeholder="비밀번호 (8자 이상)", label_visibility="collapsed")
+                m_pw3 = st.text_input("비밀번호 확인", type="password", key="m_rp2", placeholder="비밀번호 확인", label_visibility="collapsed")
+                reg_submitted = st.form_submit_button("회원가입", use_container_width=True, type="primary")
+            if reg_submitted:
                 if m_pw2 != m_pw3:
                     st.error("비밀번호가 일치하지 않습니다")
                 elif DB:
                     u, err = register_user(m_em2, m_pw2, m_nm)
                     if u:
                         st.success("가입 완료! 로그인해주세요.")
+                        st.session_state["main_login_mode"] = "로그인"
+                        st.rerun()
                     else:
                         st.error(err)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -852,8 +871,14 @@ elif page=="Dashboard":
                         st.markdown(f'<div class="pa-quote"><div class="pa-quote-text">"{text2}"</div>{"<div class=pa-quote-ref>"+ref2+"</div>" if ref2 else ""}</div>',unsafe_allow_html=True)
 
         c1,c2,c3,c4=st.columns(4)
-        c1.metric("Backlog",len(backlog)); c2.metric("To Do",len(todo))
-        c3.metric("진행 중",len(doing)); c4.metric("완료",len(done_t))
+        if c1.button(f"📋 Backlog\n{len(backlog)}",use_container_width=True,key="dash_backlog"):
+            st.session_state.current_page="Tasks"; st.rerun()
+        if c2.button(f"✅ To Do\n{len(todo)}",use_container_width=True,key="dash_todo"):
+            st.session_state.current_page="Tasks"; st.rerun()
+        if c3.button(f"⚡ 진행 중\n{len(doing)}",use_container_width=True,key="dash_doing"):
+            st.session_state.current_page="Tasks"; st.rerun()
+        if c4.button(f"🏁 완료\n{len(done_t)}",use_container_width=True,key="dash_done"):
+            st.session_state.current_page="Tasks"; st.rerun()
 
         for wk in st.session_state.dash_widget_order:
             if wk=="quote": continue
@@ -908,8 +933,12 @@ elif page=="Dashboard":
                 if todo:
                     for t in todo[:5]:
                         is_urgent=t.get("due_date")==str(today_kst())
-                        st.markdown(f"{'🔥' if is_urgent else '·'} {t['title']}")
+                        tc1,tc2=st.columns([5,1])
+                        tc1.markdown(f"{'🔥' if is_urgent else '·'} {t['title']}")
+                        if tc2.button("→",key=f"dash_t_{t['id']}"): st.session_state.current_page="Tasks"; st.rerun()
                 else: st.caption("모든 할 일 완료! 🎉")
+                if st.button("Tasks 전체 보기",use_container_width=True,key="dash_tasks_all"):
+                    st.session_state.current_page="Tasks"; st.rerun()
 
         st.markdown("---")
         bc1,bc2=st.columns(2)
@@ -2128,4 +2157,4 @@ elif page=="Settings":
         if st.button("기본값으로 초기화",use_container_width=True):
             st.session_state.sidebar_pages_order=None; st.rerun()
 
-st.markdown(f'<div style="height:1px;background:{D["border"]};margin:32px 0 8px"></div><p style="font-size:11px;color:{D["text3"]};text-align:center">Personal Assistant v7.1</p>',unsafe_allow_html=True)
+st.markdown(f'<div style="height:1px;background:{D["border"]};margin:32px 0 8px"></div><p style="font-size:11px;color:{D["text3"]};text-align:center">Personal Assistant v8.0</p>',unsafe_allow_html=True)
