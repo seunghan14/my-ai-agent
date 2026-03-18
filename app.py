@@ -180,7 +180,14 @@ def _build_css(theme):
 header[data-testid="stHeader"] {{ background:transparent !important; border-bottom:none !important; }}
 .stDeployButton {{ display:none !important; }}
 [data-testid="stToolbar"] {{ display:none !important; }}
-[data-testid="stSidebarCollapsedControl"] {{ display:flex !important; opacity:1 !important; z-index:9999 !important; }}
+[data-testid="stSidebarCollapsedControl"] {{ 
+    display:flex !important; opacity:1 !important; z-index:9999 !important;
+    position:fixed !important; top:8px !important; left:8px !important;
+    background:{d['surface']} !important; border:1px solid {d['border']} !important;
+    border-radius:8px !important; padding:4px !important;
+    box-shadow:0 2px 8px rgba(0,0,0,0.12) !important;
+}}
+[data-testid="stSidebarCollapsedControl"] button {{ color:{d['text']} !important; }}
 
 .stApp p, .stApp span, .stApp div, .stApp label {{ color:{d['text']}; font-size:14px; line-height:1.6; }}
 h1,h2,h3,h4 {{ color:{d['text']} !important; font-weight:600 !important; letter-spacing:-0.02em; }}
@@ -216,7 +223,7 @@ section[data-testid="stSidebar"] div[data-testid="stRadio"] label > div:first-ch
     border:1px solid {d['border']} !important; border-radius:8px !important; font-size:14px !important;
 }}
 .stTextInput input::placeholder, .stTextArea textarea::placeholder {{
-    color:{d['placeholder']} !important; opacity:1 !important;
+    color:{d['text3']} !important; opacity:0.75 !important; font-style:italic;
 }}
 .stTextInput input:focus, .stTextArea textarea:focus {{
     border-color:{d['accent']} !important;
@@ -660,6 +667,9 @@ with st.sidebar:
             st.session_state.current_page=new_page
             if new_page=="Calendar": st.session_state.gcal_synced_at=None
             st.rerun()
+        # #7: 같은 페이지(Notes) 재클릭 시 편집 화면 → 목록으로
+        elif new_page=="Notes" and st.session_state.get("editing_note"):
+            st.session_state.editing_note=None; clear_nc(); clear_ai(); st.rerun()
 
         st.markdown(f'<hr style="border-color:{D["border"]};margin:12px 0">',unsafe_allow_html=True)
         st.markdown(f'<style>.theme-toggle div[data-testid="stRadio"] > div{{flex-direction:row !important;gap:8px !important;}}</style>',unsafe_allow_html=True)
@@ -1326,9 +1336,9 @@ elif page=="Tasks":
 elif page=="Notes":
     if st.session_state.get("temp_note_save"):
         temp=st.session_state.temp_note_save
-        st.warning(f"임시저장: **'{temp.get('title','(제목 없음)')}'**")
+        st.warning(f"⚠️ **저장하지 않고 나온 노트**: '{temp.get('title','(제목 없음)')}' — 이어서 편집하거나 버리기를 선택하세요.")
         r1,r2=st.columns(2)
-        if r1.button("이어서 편집",use_container_width=True,key="rn"):
+        if r1.button("이어서 편집 (저장 안 된 내용 복원)",use_container_width=True,key="rn"):
             restored=dict(temp["note"]) if temp.get("note") else {}
             restored["content"]=temp.get("content",""); restored["title"]=temp.get("title","")
             st.session_state.editing_note=restored; clear_nc(); clear_ai(); st.session_state["temp_note_save"]=None; st.rerun()
@@ -1344,6 +1354,11 @@ elif page=="Notes":
             if tc or tt3: st.session_state["temp_note_save"]={"note":note,"content":tc,"title":tt3}
             st.session_state.editing_note=None; clear_nc(); clear_ai(); st.rerun()
         bc2.markdown(f'<div class="pa-breadcrumb">Notes › {"편집 중" if note.get("id") and note["id"]!="demo" else "새 노트"}</div>',unsafe_allow_html=True)
+
+        # #14: 상단 저장 버튼 (스크롤 없이 저장)
+        top_s1, top_s2, top_s3 = st.columns([2,1,3])
+        top_save = top_s1.button("💾 저장",type="primary",use_container_width=True,key="top_save_btn")
+        top_close = top_s2.button("닫기",use_container_width=True,key="top_close_btn")
 
         nt=st.text_input("노트제목",value=note.get("title",""),key="nt",placeholder="제목",label_visibility="collapsed")
         tm={"note":"Note","meeting":"Meeting","daily":"Daily","idea":"Idea","project":"Project"}
@@ -1458,10 +1473,12 @@ elif page=="Notes":
 
         st.markdown("---")
         sc=st.columns([2,1,1,1])
-        if sc[0].button("저장",type="primary",use_container_width=True):
+        if sc[0].button("저장",type="primary",use_container_width=True) or top_save:
             if DB and note.get("id")!="demo":
                 update_note(note["id"],title=nt,content=content,note_type=ns)
                 invalidate_cache()
+                # 저장 완료 시 임시저장 즉시 제거
+                st.session_state["temp_note_save"]=None
                 if ti2:
                     for tg in [t.strip().replace("#","") for t in ti2.split(",") if t.strip()]:
                         tgo=add_tag(uid,tg)
@@ -1478,7 +1495,7 @@ elif page=="Notes":
                         create_task(uid,item,desc=f"노트 '{nt}'에서",status="todo",nid=note["id"]); etitles.add(item.lower()); nc2+=1
                 if nc2>0: invalidate_cache()
                 st.success(f"저장됨{' (Task '+str(nc2)+'개 생성)' if nc2>0 else ''}")
-        if sc[1].button("← 닫기",use_container_width=True): st.session_state.editing_note=None; st.session_state.show_related=False; clear_nc(); clear_ai(); st.rerun()
+        if sc[1].button("← 닫기",use_container_width=True) or top_close: st.session_state.editing_note=None; st.session_state.show_related=False; clear_nc(); clear_ai(); st.rerun()
         if sc[2].button("삭제",use_container_width=True): st.session_state.delete_confirm=f"note_{note.get('id','')}"; st.rerun()
         if (st.session_state.get("delete_confirm") or "").startswith("note_"):
             st.error("정말 삭제할까요?")
@@ -1549,8 +1566,26 @@ elif page=="Notes":
                         fav="⭐ " if n.get("is_favorite") else ""
                         prev=n.get("content","")[:80].replace("\n"," ").strip() if n.get("content") else ""
                         cn,ca=st.columns([5,1])
-                        cn.markdown(f'<div style="margin:4px 0"><span style="font-size:14px;font-weight:500;color:{D["text"]}">{fav}{ticon} {n["title"]}</span> <span style="font-size:11px;color:{D["text3"]}">{relative_date(n.get("updated_at",""))}</span>{"<div style=font-size:12px;color:"+D["text3"]+";margin-top:2px>"+prev+"</div>" if prev else ""}</div>',unsafe_allow_html=True)
-                        if ca.button("열기",key=f"o_{n['id']}"): st.session_state.editing_note=n; st.session_state.show_related=False; clear_nc(); clear_ai(); st.rerun()
+                        # #13: 제목 클릭으로 열기
+                        title_clicked=cn.button(
+                            f"{fav}{ticon} {n['title'] or '(제목 없음)'}",
+                            key=f"nt_{n['id']}",
+                            use_container_width=True,
+                            help="클릭하여 열기"
+                        )
+                        if prev:
+                            cn.caption(prev)
+                        cn.caption(relative_date(n.get("updated_at","")))
+                        if title_clicked or ca.button("열기",key=f"o_{n['id']}"):
+                            st.session_state.editing_note=n; st.session_state.show_related=False; clear_nc(); clear_ai(); st.rerun()
+                        if ca.button("🗑",key=f"nd_{n['id']}",help="삭제"):
+                            st.session_state.delete_confirm=f"note_{n['id']}"; st.rerun()
+                        if (st.session_state.get("delete_confirm") or "")==f"note_{n['id']}":
+                            st.error(f"**{n['title']}** 삭제할까요?")
+                            nd1,nd2=st.columns(2)
+                            if nd1.button("삭제",type="primary",key=f"ndly_{n['id']}"): delete_note(n["id"]); invalidate_cache(); st.session_state.delete_confirm=None; st.rerun()
+                            if nd2.button("취소",key=f"ndln_{n['id']}"): st.session_state.delete_confirm=None; st.rerun()
+                        st.markdown(f'<div style="height:1px;background:{D["border"]};margin:2px 0;opacity:0.3"></div>',unsafe_allow_html=True)
 
         with note_tab2:
             col_d1,col_d2=st.columns(2)
