@@ -3,7 +3,7 @@ import streamlit.components.v1 as components
 from datetime import datetime, date, timedelta, timezone
 import json, calendar, math, re
 
-st.set_page_config(page_title="Personal Assistant", page_icon="🚀", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Personal Assistant", page_icon="🚀", layout="wide", initial_sidebar_state="auto")
 
 KST = timezone(timedelta(hours=9))
 def now_kst(): return datetime.now(KST)
@@ -177,7 +177,7 @@ def _build_css(theme):
 
 /* ✅ FIX 1: 헤더 투명화 (완전 숨김 제거 → 사이드바 버튼 살림) */
 #MainMenu, footer {{ display:none !important; }}
-header[data-testid="stHeader"] {{ background:transparent !important; border-bottom:none !important; }}
+header[data-testid="stHeader"] {{ visibility:hidden !important; }}
 .stDeployButton {{ display:none !important; }}
 [data-testid="stToolbar"] {{ display:none !important; }}
 [data-testid="stSidebarCollapsedControl"] {{ 
